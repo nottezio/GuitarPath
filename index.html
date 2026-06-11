@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0F0F0F">
+<title>GuitarPath — Belajar Gitar Terstruktur</title>
+
+<!-- PWA manifest stub (inlined as data URI so the file stays single-file) -->
+<link rel="manifest" href='data:application/manifest+json,{"name":"GuitarPath","short_name":"GuitarPath","start_url":".","display":"standalone","background_color":"%230F0F0F","theme_color":"%230F0F0F","icons":[]}'>
+
+<!--
+  DEPENDENCY NOTE (read before judging the SW below):
+  Per CDN-first policy, fonts load from Google Fonts. The service worker
+  caches the DOCUMENT for offline launch, but cross-origin font files are
+  left to the browser HTTP cache. With font-display:swap the app remains
+  fully usable offline on system fonts. For true offline font parity,
+  switch to base64-embedded fonts (+~200KB). This is a deliberate tradeoff.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root{
+  --bg:#0F0F0F;
+  --surface:#1A1408;        /* rosewood */
+  --surface-2:#221A0C;      /* lighter rosewood for hover/raised */
+  --accent:#C8A96E;         /* gold / fret */
+  --interactive:#4A9EFF;    /* electric blue */
+  --text:#E8E8E0;           /* bone white */
+  --text-dim:#8A8A80;       /* secondary */
+  --line:#2A2A24;           /* hairline borders */
+  --ok:#6FBF73;
+  --bad:#D9606A;
+  --lock:#56564E;
+
+  --font-display:"Space Grotesk",system-ui,sans-serif;
+  --font-body:"Inter",system-ui,sans-serif;
+
+  --sidebar-w:264px;
+  --maxw:980px;
+  --radius:10px;
+  --gap:20px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-body);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:var(--font-display);font-weight:700;line-height:1.2;letter-spacing:-.01em}
+button{font-family:inherit;cursor:pointer;color:inherit}
+input,select{font-family:inherit;color:inherit}
+::selection{background:var(--accent);color:#0F0F0F}
+
+/* ============================================================
+   LAYOUT SHELL
+   ============================================================ */
+.app{display:flex;min-height:100%}
+
+/* ---- Sidebar ---- */
+.sidebar{
+  width:var(--sidebar-w);
+  flex:0 0 var(--sidebar-w);
+  background:var(--surface);
+  border-right:1px solid var(--line);
+  display:flex;flex-direction:column;
+  position:fixed;inset:0 auto 0 0;
+  height:100vh;
+  z-index:30;
+  padding:22px 18px;
+  overflow-y:auto;
+}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:24px}
+.brand-mark{width:34px;height:34px;flex:0 0 34px}
+.brand-name{font-family:var(--font-display);font-weight:700;font-size:20px;letter-spacing:-.02em}
+.brand-name b{color:var(--accent)}
+.brand-sub{font-size:11px;color:var(--text-dim);letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+
+.nav{display:flex;flex-direction:column;gap:4px;margin-bottom:26px}
+.nav-btn{
+  display:flex;align-items:center;gap:12px;
+  background:none;border:1px solid transparent;border-radius:8px;
+  padding:10px 12px;font-size:14px;font-weight:500;text-align:left;
+  color:var(--text-dim);width:100%;transition:background .12s,color .12s,border-color .12s;
+}
+.nav-btn .ico{width:18px;height:18px;flex:0 0 18px;color:currentColor}
+.nav-btn:hover{color:var(--text);background:var(--surface-2)}
+.nav-btn.active{color:var(--accent);background:var(--surface-2);border-color:var(--line)}
+
+.side-progress{margin-top:auto;border-top:1px solid var(--line);padding-top:18px}
+.side-progress h4{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);margin-bottom:12px}
+.track-prog{margin-bottom:12px}
+.track-prog .row{display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px}
+.track-prog .row span:last-child{color:var(--accent);font-variant-numeric:tabular-nums}
+.bar{height:4px;background:var(--bg);border-radius:3px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent);width:0;transition:width .4s ease}
+
+/* ---- Main ---- */
+.main{
+  margin-left:var(--sidebar-w);
+  flex:1;min-width:0;
+  padding:30px clamp(18px,4vw,46px) 90px;
+}
+.view{max-width:var(--maxw);margin:0 auto;display:none;animation:fade .25s ease}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ---- Module header w/ signature fretboard divider ---- */
+.module-head{margin-bottom:26px}
+.module-head .eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:600;margin-bottom:6px}
+.module-head h2{font-size:clamp(26px,4vw,34px)}
+.module-head p{color:var(--text-dim);max-width:62ch;margin-top:8px;font-size:14px}
+.fret-divider{display:block;width:100%;height:34px;margin:14px 0 0}
+
+/* ============================================================
+   GENERIC UI
+   ============================================================ */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+.btn{
+  background:var(--surface-2);border:1px solid var(--line);border-radius:8px;
+  padding:9px 16px;font-size:14px;font-weight:500;transition:.12s;
+}
+.btn:hover{border-color:var(--accent)}
+.btn-primary{background:var(--accent);color:#0F0F0F;border-color:var(--accent);font-weight:600}
+.btn-primary:hover{filter:brightness(1.08)}
+.btn-blue{background:var(--interactive);color:#06121f;border-color:var(--interactive);font-weight:600}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--line);color:var(--text-dim)}
+.tag-row{display:flex;gap:8px;flex-wrap:wrap}
+.note-name{font-family:var(--font-display);font-variant-numeric:tabular-nums}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* focus visibility (quality floor) */
+:focus-visible{outline:2px solid var(--interactive);outline-offset:2px}
+
+/* ============================================================
+   MOBILE: sidebar -> bottom tab bar
+   ============================================================ */
+@media (max-width:768px){
+  :root{--sidebar-w:0px}
+  .sidebar{
+    position:fixed;inset:auto 0 0 0;top:auto;height:auto;width:100%;
+    flex-direction:row;border-right:none;border-top:1px solid var(--line);
+    padding:6px 6px env(safe-area-inset-bottom);overflow:visible;
+  }
+  .brand,.side-progress{display:none}
+  .nav{flex-direction:row;margin:0;width:100%;gap:2px}
+  .nav-btn{flex-direction:column;gap:3px;font-size:10px;padding:8px 2px;border:none;border-radius:6px;justify-content:center}
+  .nav-btn .ico{width:20px;height:20px}
+  .nav-btn span.lbl{font-size:10px}
+  .main{margin-left:0;padding:20px 16px 88px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}
+
+/* ============================================================
+   VIEW: PELAJARAN
+   ============================================================ */
+.track{margin-bottom:34px}
+.track-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.track-head .ico{width:20px;height:20px;color:var(--accent)}
+.track-head h3{font-size:18px;flex:1}
+.lvl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.lvl{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column}
+.lvl.locked{opacity:.6}
+.lvl-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.lvl-badge{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.lvl-status{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text-dim)}
+.lvl-status svg{color:var(--lock)}
+.lvl h4{font-size:15px;margin-bottom:8px}
+.lvl p{font-size:13px;color:var(--text-dim);margin-bottom:10px}
+.lvl .tips{list-style:none;margin-bottom:14px;display:flex;flex-direction:column;gap:6px}
+.lvl .tips li{font-size:12.5px;padding-left:16px;position:relative;color:var(--text)}
+.lvl .tips li::before{content:"";position:absolute;left:0;top:8px;width:6px;height:6px;background:var(--interactive);border-radius:50%}
+.lvl .btn{margin-top:auto;align-self:flex-start}
+.dim{color:var(--text-dim)}.small{font-size:12px}
+
+/* ============================================================
+   VIEW: FRETBOARD
+   ============================================================ */
+.fb-controls{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin-bottom:16px}
+.toggle{display:inline-flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.toggle input{width:16px;height:16px;accent-color:var(--accent)}
+.fb-scale{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}
+.fb-scale select{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:13px}
+.fb-readout{margin-left:auto;font-size:14px;color:var(--text-dim)}
+.fb-readout .note-name{color:var(--accent);font-size:18px;margin-left:4px}
+.fb-window{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;width:100%}
+.fb-wrap{overflow-x:auto}
+.fretboard-svg{width:100%;height:auto;display:block;max-width:860px;margin:0 auto}
+@media (max-width:768px){
+  /* On phones the windowed neck fits the card; no horizontal scrolling needed. */
+  .fretboard-svg{min-width:0}
+}
+
+/* ============================================================
+   VIEW: KAMUS CHORD
+   ============================================================ */
+.chord-controls{margin-bottom:18px;display:flex;flex-direction:column;gap:12px}
+.search{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:11px 14px;font-size:14px;width:100%}
+.search:focus{outline:none;border-color:var(--interactive)}
+.chip{background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:6px 14px;font-size:12.5px;color:var(--text-dim);transition:.12s}
+.chip:hover{color:var(--text)}
+.chip.on{background:var(--accent);color:#0F0F0F;border-color:var(--accent);font-weight:600}
+.chord-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.chord-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 10px;display:flex;flex-direction:column;align-items:center;gap:4px;transition:border-color .12s,transform .08s;text-align:center}
+.chord-card:hover{border-color:var(--accent)}
+.chord-card.flash{border-color:var(--interactive);transform:scale(.97)}
+.chord-svg{width:100%;max-width:120px}
+.chord-name{font-family:var(--font-display);font-weight:700;font-size:15px}
+.chord-cat{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim)}
+.chord-note{font-size:10.5px;color:var(--interactive);margin-top:2px}
+
+/* ============================================================
+   VIEW: METRONOM
+   ============================================================ */
+.metro{display:grid;grid-template-columns:1fr 1.2fr;gap:28px;align-items:center}
+.metro-visual{display:flex;flex-direction:column;align-items:center;gap:18px}
+#pendulum{width:100%;max-width:240px}
+.beat-dots{display:flex;gap:10px}
+.beat-dots .bd{width:14px;height:14px;border-radius:50%;background:var(--bg);border:1px solid var(--line);transition:transform .06s}
+.beat-dots .bd.hit{background:var(--interactive);transform:scale(1.35)}
+.beat-dots .bd.accent.hit{background:var(--accent)}
+.beat-dots .bd.accent{border-color:var(--accent)}
+.bpm-display{font-family:var(--font-display);font-weight:700;font-size:54px;line-height:1;display:flex;align-items:baseline;gap:8px}
+.bpm-display small{font-size:14px;color:var(--text-dim);font-weight:400}
+.slider{width:100%;accent-color:var(--accent);margin:14px 0}
+.metro-row{display:flex;gap:14px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.metro-row label{font-size:13px;color:var(--text-dim);display:flex;align-items:center;gap:8px}
+.metro-row input[type=number]{width:70px;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-size:14px}
+.metro-row select{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-size:13px}
+.btn.big{padding:13px 22px;font-size:15px;width:100%;margin-top:8px}
+
+/* ============================================================
+   VIEW: KUIS
+   ============================================================ */
+.quiz-cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
+.quiz-cat{display:flex;flex-direction:column;gap:10px}
+.quiz-cat h3{font-size:16px}
+.quiz-hist{display:flex;gap:6px;flex-wrap:wrap;min-height:24px}
+.quiz-cat .btn{margin-top:auto}
+.quiz-q .quiz-meta{display:flex;justify-content:space-between;font-size:13px;color:var(--text-dim);margin-bottom:8px}
+.quiz-bar{margin-bottom:18px}
+.quiz-bar>i{background:var(--interactive)}
+.q-text{font-size:19px;margin-bottom:14px}
+.q-diagram,.quiz-q>.q-diagram{display:flex;justify-content:center;margin-bottom:14px}
+.q-diagram .chord-svg{max-width:140px}
+.opts{display:grid;gap:10px;margin-bottom:14px}
+.opt{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:13px 16px;font-size:14px;text-align:left;transition:.12s}
+.opt:hover:not(:disabled){border-color:var(--interactive)}
+.opt.correct{background:rgba(111,191,115,.14);border-color:var(--ok);color:var(--ok)}
+.opt.wrong{background:rgba(217,96,106,.12);border-color:var(--bad);color:var(--bad)}
+.explain{font-size:13.5px;color:var(--text-dim);background:var(--bg);border-radius:8px;padding:12px 14px;margin-bottom:14px}
+.explain .ok{color:var(--ok)}.explain .bad{color:var(--bad)}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+.quiz-result{text-align:center;padding:34px}
+.result-badge{display:inline-block;border:1.5px solid;border-radius:24px;padding:7px 20px;font-family:var(--font-display);font-weight:700;font-size:15px;margin-bottom:18px}
+.result-score{font-family:var(--font-display);font-weight:700;font-size:58px;line-height:1}
+.result-score span{font-size:24px;color:var(--text-dim)}
+.result-actions{display:flex;gap:12px;justify-content:center;margin-top:22px;flex-wrap:wrap}
+
+@media (max-width:768px){
+  .metro{grid-template-columns:1fr;gap:18px}
+  .fb-readout{margin-left:0}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ====================================================== -->
+  <!-- SIDEBAR -->
+  <!-- ====================================================== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 34 34" aria-hidden="true">
+        <rect x="1" y="1" width="32" height="32" rx="7" fill="none" stroke="#C8A96E" stroke-width="1.4"/>
+        <line x1="8" y1="7" x2="8" y2="27" stroke="#C8A96E" stroke-width="1.2"/>
+        <line x1="13" y1="7" x2="13" y2="27" stroke="#8A8A80" stroke-width="1"/>
+        <line x1="18" y1="7" x2="18" y2="27" stroke="#8A8A80" stroke-width="1"/>
+        <line x1="23" y1="7" x2="23" y2="27" stroke="#8A8A80" stroke-width="1"/>
+        <circle cx="26" cy="13" r="2.4" fill="#4A9EFF"/>
+      </svg>
+      <div>
+        <div class="brand-name">Guitar<b>Path</b></div>
+        <div class="brand-sub">Jalur Belajar Gitar</div>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav"><!-- buttons injected by JS --></nav>
+
+    <div class="side-progress" id="sideProgress">
+      <h4>Progres Pelajaran</h4>
+      <!-- track bars injected by JS -->
+    </div>
+  </aside>
+
+  <!-- ====================================================== -->
+  <!-- MAIN VIEWS -->
+  <!-- ====================================================== -->
+  <main class="main" id="main">
+    <section class="view" id="view-pelajaran" data-view="pelajaran"></section>
+    <section class="view" id="view-fretboard" data-view="fretboard"></section>
+    <section class="view" id="view-chord"    data-view="chord"></section>
+    <section class="view" id="view-metronom" data-view="metronom"></section>
+    <section class="view" id="view-kuis"     data-view="kuis"></section>
+  </main>
+</div>
+
+<!-- ====================================================== -->
+<!-- SCRIPTS -->
+<!-- ====================================================== -->
+<script>
+"use strict";
+/* ============================================================
+   MODULE: CORE — music theory constants & note math
+   ============================================================ */
+const CHROMA = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+// Standard tuning, string 1 (high E) .. string 6 (low E). Open-note MIDI.
+// MIDI: C4=60. E4=64, B3=59, G3=55, D3=50, A2=45, E2=40.
+const TUNING = [
+  {label:"1 (E tinggi)", midi:64},
+  {label:"2 (B)",        midi:59},
+  {label:"3 (G)",        midi:55},
+  {label:"4 (D)",        midi:50},
+  {label:"5 (A)",        midi:45},
+  {label:"6 (E rendah)", midi:40},
+];
+const FRETS = 12;
+function midiToName(m){ return CHROMA[((m%12)+12)%12] + (Math.floor(m/12)-1); }
+function midiToPc(m){ return ((m%12)+12)%12; }
+function noteAt(stringIdx, fret){ return TUNING[stringIdx].midi + fret; }
+function midiToFreq(m){ return 440 * Math.pow(2,(m-69)/12); }
+
+// Scale interval formulas (semitones from root)
+const SCALES = {
+  major:        {label:"Mayor",            iv:[0,2,4,5,7,9,11]},
+  minor:        {label:"Minor (Natural)",  iv:[0,2,3,5,7,8,10]},
+  pentaMinor:   {label:"Pentatonik Minor", iv:[0,3,5,7,10]},
+  blues:        {label:"Blues",            iv:[0,3,5,6,7,10]},
+};
+
+/* ============================================================
+   MODULE: DATA — lesson tracks (4 × 5 levels), Bahasa Indonesia
+   ============================================================ */
+const DIFF = ["Pemula","Dasar","Menengah","Lanjutan","Mahir"];
+
+const TRACKS = [
+  {
+    id:"chord", name:"Chord & Strumming", icon:"chord",
+    levels:[
+      {t:"Chord Terbuka Dasar", d:"Kuasai bentuk chord terbuka mayor: E, A, D, G, C. Tekan senar tepat di belakang fret agar nada bersih, bukan di atas kawat fret.", tips:["Lengkungkan jari agar ujung jari menekan tegak lurus — ujung jari tidak menyentuh senar sebelahnya.","Latih perpindahan E→A→D secara perlahan dengan metronom 60 BPM."]},
+      {t:"Pola Strumming Down-Up", d:"Pola strum 'D DU UDU' adalah fondasi ritme pop/folk. Jaga pergelangan tangan tetap rileks dan bergerak konstan seperti pendulum, walau tidak setiap gerakan mengenai senar.", tips:["Tangan kanan tetap bergerak naik-turun konstan; 'lewati' senar untuk membuat aksen.","Hitung '1 & 2 & 3 & 4 &' keras-keras sambil strum."]},
+      {t:"Transisi Chord Cepat", d:"Gunakan 'common finger' — jari yang tetap di tempat saat berpindah chord (mis. C→Am, jari 1 tetap di senar 2 fret 1) untuk mengurangi gerakan.", tips:["Identifikasi jari bersama (pivot finger) antar pasangan chord.","Latih satu transisi 1 menit penuh sebelum lanjut."]},
+      {t:"Chord Sus & Add9", d:"Chord Dsus2, Asus4, Cadd9 menambah warna tanpa mengubah fungsi harmoni. Bagus untuk menghias progresi I–V–vi–IV.", tips:["Dsus2 = lepas jari penekan senar 1 fret 2 dari chord D.","Cadd9 mudah dijangkau dari G — banyak jari posisi serupa."]},
+      {t:"Dynamics & Palm Mute", d:"Kontrol dinamika (keras-lembut) dan palm mute (telapak tangan kanan menyentuh senar dekat bridge) memberi tekstur perkusif pada strumming.", tips:["Geser telapak tangan menjauh dari bridge untuk membuka nada bertahap.","Variasikan kekuatan strum untuk membentuk frasa musik."]},
+    ]
+  },
+  {
+    id:"scale", name:"Scales & Soloing", icon:"scale",
+    levels:[
+      {t:"Pentatonik Minor Posisi 1", d:"Tangga nada pentatonik minor (box 1) adalah pola solo paling penting. Akar di senar 6 menentukan nadanya (mis. akar fret 5 = A minor pentatonik).", tips:["Hafalkan pola 'box' dua-nada-per-senar.","Mainkan naik-turun dengan metronom, satu nada per ketukan."]},
+      {t:"Hammer-on & Pull-off", d:"Hammer-on: bunyikan nada lebih tinggi dengan mengetuk jari tanpa petik ulang. Pull-off: kebalikannya. Dasar dari teknik legato.", tips:["Hammer dengan ujung jari kuat dan cepat agar nada nyaring.","Pull-off: sedikit 'cubit' senar ke bawah saat melepas, jangan hanya mengangkat."]},
+      {t:"String Bending", d:"Bend menaikkan pitch dengan mendorong senar. Bend penuh (full) = naik 2 fret (1 nada). Akurasi pitch adalah segalanya.", tips:["Gunakan beberapa jari + putaran pergelangan, bukan hanya kekuatan jari.","Bandingkan pitch bend dengan nada target yang dipetik biasa."]},
+      {t:"Blues Scale & 'Blue Note'", d:"Blues scale = pentatonik minor + b5 (blue note). Nada b5 menciptakan ketegangan khas blues; pakai sebagai nada lewat (passing tone).", tips:["Jangan berlama-lama di blue note — ia 'melewati', bukan menetap.","Gabungkan dengan bend ¼ nada untuk rasa vokal."]},
+      {t:"Frasa & Vibrato", d:"Solo yang bagus bicara dalam frasa dengan jeda 'bernapas'. Vibrato (osilasi pitch kecil yang teratur) memberi nyawa pada nada panjang.", tips:["Tinggalkan ruang kosong — jeda sama pentingnya dengan nada.","Latih vibrato lambat dan terkontrol sebelum dipercepat."]},
+    ]
+  },
+  {
+    id:"finger", name:"Fingerpicking", icon:"finger",
+    levels:[
+      {t:"Penugasan Jari p-i-m-a", d:"Notasi tangan kanan: p (jempol/bass), i (telunjuk), m (tengah), a (manis). Jempol memainkan senar bass 4–6, jari memainkan senar 1–3.", tips:["Jangkar minimal; biarkan jari bergerak dari sendi besar.","Mulai tanpa chord — latih pola jari di senar terbuka."]},
+      {t:"Pola Travis Picking", d:"Travis picking: jempol memainkan pola bass bergantian (alternating bass) sementara jari memetik melodi di atasnya. Inti folk fingerstyle.", tips:["Otomatiskan jempol dulu hingga jalan sendiri.","Tambahkan jari i-m-a setelah pola bass stabil."]},
+      {t:"Arpeggio & Broken Chord", d:"Arpeggio memetik nada chord satu per satu. Pola p-i-m-a-m-i menciptakan aliran melodis yang lembut di balada.", tips:["Biarkan setiap nada terus berbunyi (let ring) untuk efek harmonik penuh.","Jaga kecepatan stabil — gunakan metronom subdivisi 8."]},
+      {t:"Pull-off Melodi & Bass", d:"Gabungkan melodi fingerstyle dengan hammer-on/pull-off sambil mempertahankan bass jempol yang konstan — independensi tangan.", tips:["Latih tangan terpisah: bass saja, lalu melodi saja, lalu gabung.","Mulai sangat lambat; independensi datang dari pengulangan."]},
+      {t:"Perkusi & Harmonik", d:"Teknik lanjutan: harmonik alami (sentuh ringan di fret 12/7/5), serta perkusi body untuk ritme. Memperluas palet fingerstyle solo.", tips:["Harmonik: sentuh tepat di atas kawat fret, lepas saat dipetik.","Tepuk perkusi pada hitungan 2 & 4 untuk groove."]},
+    ]
+  },
+  {
+    id:"theory", name:"Teori Musik", icon:"theory",
+    levels:[
+      {t:"Nama Nada & Interval", d:"12 nada kromatik berulang tiap oktaf. Interval = jarak antar dua nada (mis. C→G = perfect fifth, 7 semitone). Fondasi semua harmoni.", tips:["Hafalkan jarak: oktaf=12, fifth=7, fourth=5, third mayor=4 semitone.","Senar 5 & 6 adalah peta nada akar barre chord."]},
+      {t:"Konstruksi Chord Mayor/Minor", d:"Triad mayor = root + 3rd mayor + 5th (1-3-5). Minor = root + 3rd minor + 5th (1-b3-5). Perbedaan satu semitone di nada ketiga mengubah karakter.", tips:["C mayor = C-E-G; C minor = C-Eb-G.","Identifikasi nada chord di fretboard, bukan sekadar bentuk."]},
+      {t:"Tangga Nada & Tonika", d:"Tangga nada mayor (W-W-H-W-W-W-H) menentukan nada-nada kunci sebuah lagu. Tonika (derajat 1) adalah pusat gravitasi harmoni.", tips:["W=whole(2 fret), H=half(1 fret).","Nada ke-1, 4, 5 adalah chord paling stabil (I-IV-V)."]},
+      {t:"Progresi Akor & Diatonik", d:"Dari tiap tangga nada lahir 7 chord diatonik (I ii iii IV V vi vii°). Progresi populer: I–V–vi–IV. Angka Romawi = bahasa universal progresi.", tips:["Di C mayor: C Dm Em F G Am Bdim.","Capo memindahkan posisi tanpa mengubah bentuk/angka Romawi."]},
+      {t:"Mode & Aplikasi Solo", d:"Mode (Ionian, Dorian, Mixolydian, dll) adalah tangga nada mayor dimulai dari derajat berbeda, masing-masing punya warna emosional unik untuk solo.", tips:["Dorian (mulai derajat 2) = minor dengan 6 mayor, terdengar 'jazzy'.","Cocokkan mode dengan chord yang sedang berbunyi (chord-tone targeting)."]},
+    ]
+  },
+];
+
+/* ============================================================
+   MODULE: DATA — chord library (20+). Positions generated to SVG.
+   pos: per string 1..6 -> {f:fret(0=open,-1=mute), fin:finger 1-4 or 0}
+   barre: optional {fromString, toString, fret, finger}
+   ============================================================ */
+const CHORDS = [
+  // OPEN
+  {n:"E",     cat:"open",  pos:[{f:0},{f:0},{f:1,fin:1},{f:2,fin:3},{f:2,fin:2},{f:0}]},
+  {n:"A",     cat:"open",  pos:[{f:0},{f:2,fin:3},{f:2,fin:2},{f:2,fin:1},{f:0},{f:-1}]},
+  {n:"D",     cat:"open",  pos:[{f:2,fin:2},{f:3,fin:3},{f:2,fin:1},{f:0},{f:-1},{f:-1}]},
+  {n:"G",     cat:"open",  pos:[{f:3,fin:4},{f:0},{f:0},{f:0},{f:2,fin:1},{f:3,fin:2}]},
+  {n:"C",     cat:"open",  pos:[{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:3,fin:3},{f:-1}]},
+  {n:"Em",    cat:"open",  pos:[{f:0},{f:0},{f:0},{f:2,fin:3},{f:2,fin:2},{f:0}]},
+  {n:"Am",    cat:"open",  pos:[{f:0},{f:1,fin:1},{f:2,fin:3},{f:2,fin:2},{f:0},{f:-1}]},
+  {n:"Dm",    cat:"open",  pos:[{f:1,fin:1},{f:3,fin:3},{f:2,fin:2},{f:0},{f:-1},{f:-1}]},
+  // BARRE
+  {n:"F",     cat:"barre", pos:[{f:1},{f:1},{f:2,fin:2},{f:3,fin:4},{f:3,fin:3},{f:1}], barre:{fromString:1,toString:6,fret:1,finger:1}},
+  {n:"Bm",    cat:"barre", pos:[{f:2},{f:3,fin:2},{f:4,fin:4},{f:4,fin:3},{f:2},{f:-1}], barre:{fromString:1,toString:5,fret:2,finger:1}},
+  // POWER
+  {n:"E5",    cat:"power", pos:[{f:-1},{f:-1},{f:-1},{f:2,fin:3},{f:2,fin:2},{f:0}]},
+  {n:"A5",    cat:"power", pos:[{f:-1},{f:-1},{f:-1},{f:2,fin:3},{f:2,fin:2},{f:0}], _bassString:5},
+  {n:"D5",    cat:"power", pos:[{f:-1},{f:-1},{f:2,fin:3},{f:2,fin:2},{f:0},{f:-1}]},
+  // EXTENDED
+  {n:"Cmaj7", cat:"ext",   pos:[{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:3,fin:3},{f:-1}]},
+  {n:"Am7",   cat:"ext",   pos:[{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:0},{f:-1}]},
+  {n:"G7",    cat:"ext",   pos:[{f:1,fin:1},{f:0},{f:0},{f:0},{f:2,fin:2},{f:3,fin:3}]},
+  {n:"Dsus2", cat:"ext",   pos:[{f:0},{f:3,fin:3},{f:2,fin:1},{f:0},{f:-1},{f:-1}]},
+  {n:"Asus4", cat:"ext",   pos:[{f:0},{f:3,fin:4},{f:2,fin:2},{f:2,fin:1},{f:0},{f:-1}]},
+  {n:"Cadd9", cat:"ext",   pos:[{f:3,fin:3},{f:3,fin:4},{f:0},{f:2,fin:2},{f:3,fin:1},{f:-1}]},
+  // METAL (drop-D power)
+  {n:"D5 (Drop-D)",  cat:"metal", pos:[{f:-1},{f:-1},{f:-1},{f:0},{f:-1},{f:0}], _dropD:true, _note:"Setem senar 6 ke D"},
+  {n:"E5 (Drop-D)",  cat:"metal", pos:[{f:-1},{f:-1},{f:-1},{f:2,fin:1},{f:-1},{f:2,fin:1}], _dropD:true, _note:"Power chord 1 jari"},
+  {n:"G5 (Drop-D)",  cat:"metal", pos:[{f:-1},{f:-1},{f:-1},{f:5,fin:1},{f:-1},{f:5,fin:1}], _dropD:true, _note:"Geser bentuk ke fret 5"},
+];
+
+// MIDI notes a chord produces (for arpeggio playback), respecting mute/open.
+function chordMidiNotes(ch){
+  const notes=[];
+  // play low->high: string 6 .. string 1
+  for(let s=5;s>=0;s--){
+    const p=ch.pos[s];
+    if(!p || p.f<0) continue;
+    let base=TUNING[s].midi;
+    if(ch._dropD && s===5) base=38; // D2
+    notes.push(base + p.f);
+  }
+  return notes;
+}
+
+const CHORD_FILTERS=[
+  {id:"all",  label:"Semua"},
+  {id:"open", label:"Terbuka"},
+  {id:"barre",label:"Barre"},
+  {id:"power",label:"Power"},
+  {id:"ext",  label:"Extended"},
+  {id:"metal",label:"Metal"},
+];
+
+/* ============================================================
+   MODULE: AUDIO — Web Audio engine (note synth + metronome)
+   ============================================================ */
+const Audio_ = {
+  ctx:null,
+  ensure(){
+    if(!this.ctx) this.ctx = new (window.AudioContext||window.webkitAudioContext)();
+    if(this.ctx.state==="suspended") this.ctx.resume();
+    return this.ctx;
+  },
+  // Plucked, guitar-like envelope: fast attack, medium decay, sustain, slow release.
+  pluck(freq, when=0, dur=0.9, gainPeak=0.28){
+    const ctx=this.ensure();
+    const t0=ctx.currentTime+when;
+    const osc=ctx.createOscillator();
+    const osc2=ctx.createOscillator(); // subtle 2nd partial for body
+    const g=ctx.createGain();
+    osc.type="triangle"; osc2.type="sine";
+    osc.frequency.value=freq; osc2.frequency.value=freq*2;
+    const g2=ctx.createGain(); g2.gain.value=0.35;
+    const lp=ctx.createBiquadFilter(); lp.type="lowpass";
+    lp.frequency.setValueAtTime(4200,t0); lp.frequency.exponentialRampToValueAtTime(1200,t0+dur);
+    // envelope
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(gainPeak,t0+0.008);          // attack
+    g.gain.exponentialRampToValueAtTime(gainPeak*0.55,t0+0.18);       // decay
+    g.gain.setValueAtTime(gainPeak*0.55,t0+Math.max(0.18,dur*0.5));   // sustain
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);               // release
+    osc.connect(lp); osc2.connect(g2); g2.connect(lp); lp.connect(g); g.connect(ctx.destination);
+    osc.start(t0); osc2.start(t0); osc.stop(t0+dur); osc2.stop(t0+dur);
+  },
+  playMidi(m,opts={}){ this.pluck(midiToFreq(m), opts.when||0, opts.dur||0.9, opts.gain||0.28); },
+  arpeggio(midis, step=0.13){ midis.forEach((m,i)=> this.playMidi(m,{when:i*step,dur:1.1})); },
+  // Metronome tick: square wave, accent (880) vs normal (440)
+  tick(accent, when=0, freqOverride){
+    const ctx=this.ensure();
+    const t0=ctx.currentTime+when;
+    const osc=ctx.createOscillator(); const g=ctx.createGain();
+    osc.type="square";
+    osc.frequency.value = freqOverride || (accent?880:440);
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.exponentialRampToValueAtTime(accent?0.4:0.26,t0+0.001);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+0.05);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(t0); osc.stop(t0+0.06);
+  }
+};
+
+/* ============================================================
+   MODULE: STATE — localStorage persistence
+   ============================================================ */
+const KEY="guitarpath.v1";
+const State = {
+  data:{ progress:{}, bpm:100, quiz:{} },
+  load(){
+    try{ const r=JSON.parse(localStorage.getItem(KEY)); if(r) this.data=Object.assign(this.data,r);}catch(e){}
+    // ensure track buckets
+    TRACKS.forEach(t=>{ if(!Array.isArray(this.data.progress[t.id])) this.data.progress[t.id]=[]; });
+    TRACKS.forEach(t=>{ if(!Array.isArray(this.data.quiz[t.id])) this.data.quiz[t.id]=[]; });
+  },
+  save(){ try{ localStorage.setItem(KEY,JSON.stringify(this.data)); }catch(e){} },
+  isDone(trackId,lvl){ return this.data.progress[trackId].includes(lvl); },
+  markDone(trackId,lvl){ if(!this.isDone(trackId,lvl)){ this.data.progress[trackId].push(lvl); this.save(); } },
+  trackCount(trackId){ return this.data.progress[trackId].length; },
+  setBpm(v){ this.data.bpm=v; this.save(); },
+  addQuiz(trackId,score){ const a=this.data.quiz[trackId]; a.unshift({score,date:Date.now()}); this.data.quiz[trackId]=a.slice(0,5); this.save(); },
+};
+
+/* ============================================================
+   MODULE: ICONS (inline SVG)
+   ============================================================ */
+const ICON={
+  pelajaran:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5h11a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H4z"/><path d="M20 5h-3a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h3z"/></svg>',
+  fretboard:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8h18M3 12h18M3 16h18"/></svg>',
+  chord:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 4v16M10 4v16M14 4v16M19 4v16M5 9h14M5 14h14"/><circle cx="10" cy="9" r="1.4" fill="currentColor"/><circle cx="14" cy="14" r="1.4" fill="currentColor"/></svg>',
+  metronom:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 3h6l3 18H6z"/><path d="M12 7v8"/><path d="M16 12l-4-5"/></svg>',
+  kuis:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 3.9-2c1.4 1 .9 2.6-.4 3.4-.8.5-1 .9-1 1.6"/><circle cx="12" cy="16.5" r=".6" fill="currentColor" stroke="none"/></svg>',
+  lock:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+  check:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12l4 4 10-11"/></svg>',
+};
+
+/* Signature fretboard-strip divider (6 strings + dot markers) */
+function fretDividerSVG(){
+  const w=980,h=34,strings=6,padX=0;
+  let s=`<svg class="fret-divider" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">`;
+  for(let i=0;i<strings;i++){
+    const y=4+i*(h-8)/(strings-1);
+    s+=`<line x1="${padX}" y1="${y}" x2="${w-padX}" y2="${y}" stroke="${i<2?'#8A8A80':'#2A2A24'}" stroke-width="${i===5?1.6:1}"/>`;
+  }
+  // fret position dots at 3,5,7,9,12 mapped across width
+  [3,5,7,9,12].forEach(f=>{
+    const x=(f/12)*w;
+    if(f===12){ s+=`<circle cx="${x}" cy="11" r="2.6" fill="#C8A96E"/><circle cx="${x}" cy="23" r="2.6" fill="#C8A96E"/>`; }
+    else s+=`<circle cx="${x}" cy="17" r="2.6" fill="#C8A96E"/>`;
+  });
+  return s+`</svg>`;
+}
+</script>
+<script>
+/* ============================================================
+   MODULE: APP — router, nav, sidebar progress
+   ============================================================ */
+const VIEWS=[
+  {id:"pelajaran",label:"Pelajaran"},
+  {id:"fretboard",label:"Fretboard"},
+  {id:"chord",label:"Kamus Chord"},
+  {id:"metronom",label:"Metronom"},
+  {id:"kuis",label:"Kuis"},
+];
+let currentView="pelajaran";
+
+function buildNav(){
+  document.getElementById("nav").innerHTML = VIEWS.map(v=>
+    `<button class="nav-btn" data-go="${v.id}">${ICON[v.id]}<span class="lbl">${v.label}</span></button>`
+  ).join("");
+  document.querySelectorAll("[data-go]").forEach(b=>
+    b.addEventListener("click",()=>go(b.dataset.go)));
+}
+function go(id){
+  currentView=id;
+  document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.dataset.view===id));
+  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.go===id));
+  if(id==="metronom") Metronome.onShow(); else Metronome.stop();
+  window.scrollTo(0,0);
+}
+
+function renderSidebarProgress(){
+  const host=document.getElementById("sideProgress");
+  host.innerHTML='<h4>Progres Pelajaran</h4>'+TRACKS.map(t=>{
+    const done=State.trackCount(t.id), pct=Math.round(done/t.levels.length*100);
+    return `<div class="track-prog">
+      <div class="row"><span>${t.name}</span><span>${done}/${t.levels.length}</span></div>
+      <div class="bar"><i style="width:${pct}%"></i></div></div>`;
+  }).join("");
+}
+
+function moduleHead(eyebrow,title,desc){
+  return `<header class="module-head">
+    <div class="eyebrow">${eyebrow}</div>
+    <h2>${title}</h2><p>${desc}</p>${fretDividerSVG()}</header>`;
+}
+
+/* ============================================================
+   MODULE: PELAJARAN (lesson progression)
+   ============================================================ */
+const Pelajaran={
+  render(){
+    const v=document.getElementById("view-pelajaran");
+    v.innerHTML = moduleHead("Modul 01 — Jalur Belajar","Pelajaran",
+      "Empat jalur disiplin, masing-masing lima tingkat dari Pemula hingga Mahir. Selesaikan satu tingkat untuk membuka berikutnya.")
+      + `<div id="trackList"></div>`;
+    this.renderTracks();
+  },
+  renderTracks(){
+    document.getElementById("trackList").innerHTML = TRACKS.map(t=>{
+      const done=State.trackCount(t.id);
+      const levels=t.levels.map((lv,i)=>{
+        const isDone=State.isDone(t.id,i);
+        const unlocked = i===0 || State.isDone(t.id,i-1);
+        const locked = !unlocked;
+        return `<div class="lvl ${locked?'locked':''}" >
+          <div class="lvl-top">
+            <span class="lvl-badge">${DIFF[i]}</span>
+            <span class="lvl-status">${isDone?ICON.check+' Selesai':locked?ICON.lock+' Terkunci':'Terbuka'}</span>
+          </div>
+          <h4>${lv.t}</h4>
+          ${locked?'<p class="dim">Selesaikan tingkat sebelumnya untuk membuka.</p>':`
+            <p>${lv.d}</p>
+            <ul class="tips">${lv.tips.map(x=>`<li>${x}</li>`).join("")}</ul>
+            <button class="btn ${isDone?'':'btn-primary'}" data-done="${t.id}:${i}" ${isDone?'disabled':''}>
+              ${isDone?'Sudah Selesai':'Tandai Selesai'}</button>`}
+        </div>`;
+      }).join("");
+      return `<section class="track">
+        <div class="track-head">${ICON[t.icon]||ICON.pelajaran}<h3>${t.name}</h3>
+          <span class="pill">${done}/${t.levels.length} selesai</span></div>
+        <div class="lvl-grid">${levels}</div></section>`;
+    }).join("");
+    document.querySelectorAll("[data-done]").forEach(b=>b.addEventListener("click",()=>{
+      const [tid,lvl]=b.dataset.done.split(":");
+      State.markDone(tid,+lvl);
+      this.renderTracks(); renderSidebarProgress();
+    }));
+  }
+};
+
+/* ============================================================
+   MODULE: FRETBOARD (interactive neck + scale overlay)
+   ============================================================ */
+const Fretboard={
+  showNotes:false, scaleRoot:null, scaleType:null, fretWindow:"full",
+  render(){
+    const v=document.getElementById("view-fretboard");
+    v.innerHTML = moduleHead("Modul 02 — Eksplorasi","Fretboard Interaktif",
+      "Ketuk titik mana pun untuk membunyikan nada dan melihat namanya. Aktifkan overlay tangga nada untuk menyorot nada-nada skala.")
+      + `<div class="fb-controls card">
+          <label class="toggle"><input type="checkbox" id="fbShowNotes"> <span>Tampilkan Nada</span></label>
+          <div class="fb-scale">
+            <span class="dim">Overlay tangga nada:</span>
+            <select id="fbRoot"><option value="">— Nonaktif —</option>${CHROMA.map(c=>`<option>${c}</option>`).join("")}</select>
+            <select id="fbType">${Object.entries(SCALES).map(([k,s])=>`<option value="${k}">${s.label}</option>`).join("")}</select>
+            <button class="btn" id="fbClear">Bersihkan</button>
+          </div>
+          <div class="fb-window" id="fbWindow" role="group" aria-label="Rentang fret">
+            <span class="dim">Rentang:</span>
+            <button class="chip on" data-win="full">Penuh 0–12</button>
+            <button class="chip" data-win="low">Fret 0–6</button>
+            <button class="chip" data-win="high">Fret 5–12</button>
+          </div>
+          <div id="fbReadout" class="fb-readout">Nada: <span class="note-name" id="fbNote">—</span></div>
+        </div>
+        <div class="fb-wrap card" id="fbWrap"></div>`;
+    document.getElementById("fbShowNotes").addEventListener("change",e=>{this.showNotes=e.target.checked;this.draw();});
+    document.getElementById("fbRoot").addEventListener("change",e=>{this.scaleRoot=e.target.value===""?null:CHROMA.indexOf(e.target.value);this.draw();});
+    document.getElementById("fbType").addEventListener("change",e=>{this.scaleType=e.target.value;this.draw();});
+    document.getElementById("fbClear").addEventListener("click",()=>{this.scaleRoot=null;document.getElementById("fbRoot").value="";this.draw();});
+    document.querySelectorAll("[data-win]").forEach(b=>b.addEventListener("click",()=>{
+      this.fretWindow=b.dataset.win;
+      document.querySelectorAll("[data-win]").forEach(x=>x.classList.toggle("on",x===b));
+      this.draw();
+    }));
+    // Default to a fitted window on small screens so the neck doesn't overflow.
+    if(window.matchMedia && window.matchMedia("(max-width:768px)").matches){
+      this.fretWindow="low";
+      document.querySelectorAll("[data-win]").forEach(x=>x.classList.toggle("on",x.dataset.win==="low"));
+    }
+    this.scaleType="major";
+    this.draw();
+  },
+  scaleSet(){
+    if(this.scaleRoot===null) return null;
+    const iv=SCALES[this.scaleType||"major"].iv;
+    return new Set(iv.map(i=>(this.scaleRoot+i)%12));
+  },
+  draw(){
+    // Determine visible fret range from the window selector.
+    const ranges={full:[0,12], low:[0,6], high:[5,12]};
+    const [fStart,fEnd]=ranges[this.fretWindow]||ranges.full;
+    const nFrets=fEnd-fStart;                 // number of fret cells shown
+    const startsAtNut=fStart===0;
+    // Width scales with the number of visible frets so each cell stays wide
+    // enough to tap comfortably (~62px/cell) regardless of window.
+    const cellW=62, padL=46, padR=20, padT=24, padB=24, H=300;
+    const W=padL+padR+nFrets*cellW;
+    const innerW=W-padL-padR, innerH=H-padT-padB;
+    const strSpace=innerH/(6-1), fretSpace=innerW/nFrets;
+    const set=this.scaleSet();
+    // x position for a given absolute fret number within the window
+    const fx = f => padL+(f-fStart)*fretSpace;
+    let s=`<svg viewBox="0 0 ${W} ${H}" class="fretboard-svg" role="img" aria-label="Fretboard fret ${fStart}–${fEnd}">`;
+    // nut (only when window starts at fret 0) else a position label
+    if(startsAtNut){ s+=`<rect x="${padL-6}" y="${padT-6}" width="6" height="${innerH+12}" fill="#C8A96E"/>`; }
+    else { s+=`<text x="${padL-10}" y="${padT-8}" fill="#C8A96E" font-size="12" text-anchor="end" font-family="Space Grotesk">${fStart}fr</text>`; }
+    // frets
+    for(let f=fStart;f<=fEnd;f++){ const x=fx(f);
+      s+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT+innerH}" stroke="#2A2A24" stroke-width="${f===0?0:1.4}"/>`;
+      if(f>0) s+=`<text x="${x-fretSpace/2}" y="${H-6}" fill="#8A8A80" font-size="11" text-anchor="middle" font-family="Space Grotesk">${f}</text>`;
+    }
+    // inlay markers at 3,5,7,9,12 (only those inside the window)
+    [3,5,7,9,12].forEach(f=>{ if(f<=fStart||f>fEnd) return; const x=fx(f-0.5);
+      if(f===12){ s+=`<circle cx="${x}" cy="${padT+innerH*0.3}" r="4" fill="#221A0C" stroke="#56564E"/><circle cx="${x}" cy="${padT+innerH*0.7}" r="4" fill="#221A0C" stroke="#56564E"/>`;}
+      else s+=`<circle cx="${x}" cy="${padT+innerH/2}" r="4" fill="#221A0C" stroke="#56564E"/>`;
+    });
+    // strings + name labels
+    for(let st=0;st<6;st++){ const y=padT+st*strSpace;
+      s+=`<line x1="${padL}" y1="${y}" x2="${padL+innerW}" y2="${y}" stroke="#56564E" stroke-width="${1+ (st)*0.25}"/>`;
+      s+=`<text x="14" y="${y+4}" fill="#8A8A80" font-size="11" font-family="Space Grotesk">${["E","B","G","D","A","E"][st]}</text>`;
+    }
+    // interactive note dots — only frets in the window (include open col only at nut)
+    for(let st=0;st<6;st++){ for(let f=fStart;f<=fEnd;f++){
+      if(f===0 && !startsAtNut) continue;
+      const x = f===0 ? padL-22 : fx(f-0.5);
+      const y = padT+st*strSpace;
+      const midi=noteAt(st,f); const pc=midiToPc(midi);
+      const inScale = set ? set.has(pc) : false;
+      const isRoot = set ? pc===this.scaleRoot : false;
+      let r=11, fill="transparent", stroke="#2A2A24", label="";
+      if(set){
+        if(inScale){ fill=isRoot?"#C8A96E":"#221A0C"; stroke=isRoot?"#C8A96E":"#C8A96E"; label=CHROMA[pc]; }
+        else { fill="transparent"; stroke="#1d1d18"; }
+      } else if(this.showNotes){ fill="#221A0C"; stroke="#3a3a30"; label=CHROMA[pc]; }
+      const showLabel = label && (this.showNotes || inScale);
+      s+=`<g class="fb-dot" data-st="${st}" data-f="${f}" style="cursor:pointer">
+            <circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="1.3"/>
+            ${showLabel?`<text x="${x}" y="${y+3.5}" text-anchor="middle" font-size="10" font-family="Space Grotesk" fill="${isRoot?'#0F0F0F':'#E8E8E0'}">${label}</text>`:""}
+          </g>`;
+    }}
+    s+=`</svg>`;
+    document.getElementById("fbWrap").innerHTML=s;
+    document.querySelectorAll(".fb-dot").forEach(g=>g.addEventListener("click",()=>{
+      const st=+g.dataset.st,f=+g.dataset.f,midi=noteAt(st,f);
+      Audio_.playMidi(midi,{dur:1.0});
+      document.getElementById("fbNote").textContent=midiToName(midi);
+      g.querySelector("circle").setAttribute("fill","#4A9EFF");
+      setTimeout(()=>this.draw(),260);
+    }));
+  }
+};
+</script>
+<script>
+/* ============================================================
+   MODULE: KAMUS CHORD (dictionary + programmatic SVG diagrams)
+   ============================================================ */
+const ChordDict={
+  filter:"all", query:"",
+  render(){
+    const v=document.getElementById("view-chord");
+    v.innerHTML = moduleHead("Modul 03 — Referensi","Kamus Chord",
+      "Lebih dari 20 chord dengan diagram yang dihasilkan secara otomatis. Klik chord untuk membunyikannya sebagai arpeggio.")
+      + `<div class="card chord-controls">
+          <input id="chSearch" class="search" type="search" placeholder="Cari chord… (mis. Am7, F, Drop-D)">
+          <div class="tag-row" id="chFilters">${CHORD_FILTERS.map(f=>
+            `<button class="chip ${f.id==='all'?'on':''}" data-filter="${f.id}">${f.label}</button>`).join("")}</div>
+        </div>
+        <div class="chord-grid" id="chordGrid"></div>`;
+    document.getElementById("chSearch").addEventListener("input",e=>{this.query=e.target.value.toLowerCase().trim();this.grid();});
+    document.querySelectorAll("[data-filter]").forEach(b=>b.addEventListener("click",()=>{
+      this.filter=b.dataset.filter;
+      document.querySelectorAll("[data-filter]").forEach(x=>x.classList.toggle("on",x===b));
+      this.grid();
+    }));
+    this.grid();
+  },
+  grid(){
+    const list=CHORDS.filter(c=>(this.filter==="all"||c.cat===this.filter) && c.n.toLowerCase().includes(this.query));
+    const host=document.getElementById("chordGrid");
+    if(!list.length){ host.innerHTML=`<p class="dim" style="padding:20px">Tidak ada chord yang cocok. Coba kata kunci lain.</p>`; return; }
+    host.innerHTML=list.map((c,i)=>`<button class="chord-card" data-ci="${CHORDS.indexOf(c)}">
+        ${this.diagram(c)}
+        <div class="chord-name">${c.n}</div>
+        <div class="chord-cat">${({open:"Terbuka",barre:"Barre",power:"Power",ext:"Extended",metal:"Metal"})[c.cat]}</div>
+        ${c._note?`<div class="chord-note">${c._note}</div>`:""}
+      </button>`).join("");
+    document.querySelectorAll("[data-ci]").forEach(b=>b.addEventListener("click",()=>{
+      const c=CHORDS[+b.dataset.ci];
+      Audio_.arpeggio(chordMidiNotes(c),0.12);
+      b.classList.add("flash"); setTimeout(()=>b.classList.remove("flash"),300);
+    }));
+  },
+  // Programmatic SVG chord diagram
+  diagram(c){
+    const W=132,H=164,padX=20,padT=30,padB=18;
+    const strings=6, frets=5;
+    const gridW=W-padX*2, gridH=H-padT-padB;
+    const sx=gridW/(strings-1), fy=gridH/frets;
+    // determine fret window (for barre chords starting above fret 1)
+    const fretted=c.pos.filter(p=>p.f>0).map(p=>p.f);
+    const hasOpen=c.pos.some(p=>p.f===0);          // any open (unfretted, unmuted) string?
+    const minF=fretted.length?Math.min(...fretted):1;
+    const maxF=fretted.length?Math.max(...fretted):1;
+    // A chord is nut-anchored if it uses open strings OR fits within the first 4 frets.
+    // Only a no-open-string voicing that sits beyond fret 4 is a true moveable shape
+    // needing a fret-window label (e.g. "5fr").
+    const baseFret = (!hasOpen && minF>=2 && maxF>=5) ? minF : 1;
+    let s=`<svg viewBox="0 0 ${W} ${H}" class="chord-svg" aria-hidden="true">`;
+    // nut or base-fret label
+    if(baseFret===1){ s+=`<rect x="${padX-1}" y="${padT-4}" width="${gridW+2}" height="4" fill="#C8A96E"/>`; }
+    else { s+=`<text x="${padX-8}" y="${padT+fy*0.7}" fill="#C8A96E" font-size="11" font-family="Space Grotesk" text-anchor="end">${baseFret}fr</text>`; }
+    // grid: strings (vertical) & frets (horizontal)
+    for(let st=0;st<strings;st++){ const x=padX+st*sx;
+      s+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT+gridH}" stroke="#3a3a30" stroke-width="1"/>`; }
+    for(let f=0;f<=frets;f++){ const y=padT+f*fy;
+      s+=`<line x1="${padX}" y1="${y}" x2="${padX+gridW}" y2="${y}" stroke="#3a3a30" stroke-width="1"/>`; }
+    // string index mapping: pos[0]=string1(high E) -> rightmost. We draw string6 left..string1 right.
+    const stX = idx0 => padX + (5-idx0)*sx; // idx0: 0=string1 -> right
+    // top markers (X / O)
+    for(let i=0;i<6;i++){ const p=c.pos[i]; const x=stX(i);
+      if(p.f<0) s+=`<text x="${x}" y="${padT-9}" text-anchor="middle" font-size="11" fill="#8A8A80" font-family="Space Grotesk">×</text>`;
+      else if(p.f===0) s+=`<circle cx="${x}" cy="${padT-12}" r="4.2" fill="none" stroke="#8A8A80" stroke-width="1.3"/>`;
+    }
+    // barre
+    if(c.barre){
+      const bF=c.barre.fret-baseFret+1;
+      const y=padT+(bF-0.5)*fy;
+      const xa=stX(c.barre.fromString-1), xb=stX(c.barre.toString-1);
+      const x1=Math.min(xa,xb), x2=Math.max(xa,xb);
+      s+=`<rect x="${x1-7}" y="${y-7}" width="${x2-x1+14}" height="14" rx="7" fill="#C8A96E"/>`;
+    }
+    // finger dots
+    for(let i=0;i<6;i++){ const p=c.pos[i]; if(p.f<=0) continue;
+      // skip if covered by barre at same fret w/ no distinct finger
+      const rel=p.f-baseFret+1; const x=stX(i), y=padT+(rel-0.5)*fy;
+      const onBarre = c.barre && p.f===c.barre.fret && p.fin===c.barre.finger;
+      if(onBarre) continue;
+      s+=`<circle cx="${x}" cy="${y}" r="7.5" fill="#C8A96E"/>`;
+      if(p.fin) s+=`<text x="${x}" y="${y+3.4}" text-anchor="middle" font-size="9.5" fill="#0F0F0F" font-family="Space Grotesk" font-weight="700">${p.fin}</text>`;
+    }
+    return s+`</svg>`;
+  }
+};
+
+/* ============================================================
+   MODULE: METRONOM (lookahead scheduler + tap tempo)
+   ============================================================ */
+const Metronome={
+  running:false, bpm:100, sig:"4/4", sub:1,
+  nextTime:0, beat:0, subStep:0, timer:null, taps:[],
+  sigMap:{"2/4":{beats:2,note:4},"3/4":{beats:3,note:4},"4/4":{beats:4,note:4},"6/8":{beats:6,note:8}},
+  render(){
+    const v=document.getElementById("view-metronom");
+    this.bpm=State.data.bpm||100;
+    v.innerHTML = moduleHead("Modul 04 — Latihan Ritme","Metronom",
+      "Atur tempo, birama, dan subdivisi. Gunakan Tap Tempo untuk menangkap BPM dari ketukan Anda.")
+      + `<div class="metro card">
+        <div class="metro-visual"><svg id="pendulum" viewBox="0 0 220 150">
+            <line x1="110" y1="140" x2="110" y2="30" stroke="#2A2A24" stroke-width="3"/>
+            <line id="pendArm" x1="110" y1="140" x2="110" y2="40" stroke="#C8A96E" stroke-width="4"/>
+            <circle id="pendBob" cx="110" cy="40" r="10" fill="#C8A96E"/>
+            <circle cx="110" cy="140" r="5" fill="#56564E"/></svg>
+          <div class="beat-dots" id="beatDots"></div>
+        </div>
+        <div class="metro-controls">
+          <div class="bpm-display"><span id="bpmVal">${this.bpm}</span><small>BPM</small></div>
+          <input type="range" id="bpmSlider" min="40" max="240" value="${this.bpm}" class="slider">
+          <div class="metro-row">
+            <label>BPM <input type="number" id="bpmInput" min="40" max="240" value="${this.bpm}"></label>
+            <button class="btn" id="tapBtn">Tap Tempo</button>
+          </div>
+          <div class="metro-row">
+            <label>Birama
+              <select id="sigSel">${Object.keys(this.sigMap).map(k=>`<option ${k==="4/4"?"selected":""}>${k}</option>`).join("")}</select>
+            </label>
+            <label>Subdivisi
+              <select id="subSel"><option value="1">¼ (not seperempat)</option><option value="2">⅛ (not seperdelapan)</option><option value="4">1⁄16 (not seperenambelas)</option></select>
+            </label>
+          </div>
+          <button class="btn btn-primary big" id="startBtn">Mulai</button>
+        </div></div>`;
+    const $=id=>document.getElementById(id);
+    const setBpm=v=>{ v=Math.max(40,Math.min(240,+v||40)); this.bpm=v; $("bpmVal").textContent=v; $("bpmSlider").value=v; $("bpmInput").value=v; State.setBpm(v); };
+    $("bpmSlider").addEventListener("input",e=>setBpm(e.target.value));
+    $("bpmInput").addEventListener("input",e=>setBpm(e.target.value));
+    $("sigSel").addEventListener("change",e=>{this.sig=e.target.value;this.beat=0;this.buildDots();});
+    $("subSel").addEventListener("change",e=>{this.sub=+e.target.value;});
+    $("tapBtn").addEventListener("click",()=>this.tap(setBpm));
+    $("startBtn").addEventListener("click",()=>this.toggle());
+    this.buildDots();
+  },
+  buildDots(){
+    const beats=this.sigMap[this.sig].beats;
+    document.getElementById("beatDots").innerHTML=
+      Array.from({length:beats},(_,i)=>`<span class="bd ${i===0?'accent':''}" data-b="${i}"></span>`).join("");
+  },
+  onShow(){ /* keep state; nothing to resume */ },
+  tap(setBpm){
+    const now=performance.now(); this.taps.push(now);
+    this.taps=this.taps.filter(t=>now-t<3000).slice(-4);
+    if(this.taps.length>=2){
+      const intervals=[]; for(let i=1;i<this.taps.length;i++) intervals.push(this.taps[i]-this.taps[i-1]);
+      const avg=intervals.reduce((a,b)=>a+b,0)/intervals.length;
+      setBpm(Math.round(60000/avg));
+    }
+  },
+  toggle(){ this.running?this.stop():this.start(); },
+  start(){
+    Audio_.ensure();
+    this.running=true; this.beat=0; this.subStep=0;
+    this.nextTime=Audio_.ctx.currentTime+0.06;
+    document.getElementById("startBtn").textContent="Berhenti";
+    document.getElementById("startBtn").classList.remove("btn-primary");
+    document.getElementById("startBtn").classList.add("btn-blue");
+    this.scheduler();
+  },
+  stop(){
+    this.running=false; if(this.timer) clearTimeout(this.timer); this.timer=null;
+    const b=document.getElementById("startBtn");
+    if(b){ b.textContent="Mulai"; b.classList.add("btn-primary"); b.classList.remove("btn-blue"); }
+    document.querySelectorAll(".bd").forEach(d=>d.classList.remove("hit"));
+  },
+  scheduler(){
+    if(!this.running) return;
+    const beats=this.sigMap[this.sig].beats;
+    const secPerBeat=60/this.bpm;
+    const secPerSub=secPerBeat/this.sub;
+    while(this.nextTime < Audio_.ctx.currentTime+0.1){
+      const isBeat = this.subStep===0;
+      const accent = isBeat && this.beat===0;
+      // audible subdivision: beat ticks loud, sub-ticks softer/higher
+      if(isBeat){ Audio_.tick(accent,this.nextTime-Audio_.ctx.currentTime); }
+      else { Audio_.tick(false,this.nextTime-Audio_.ctx.currentTime,660); }
+      if(isBeat) this.flash(this.beat);
+      // advance
+      this.subStep++;
+      if(this.subStep>=this.sub){ this.subStep=0; this.beat=(this.beat+1)%beats; }
+      this.nextTime+=secPerSub;
+    }
+    this.timer=setTimeout(()=>this.scheduler(),25);
+  },
+  flash(beat){
+    const beats=this.sigMap[this.sig].beats;
+    document.querySelectorAll(".bd").forEach((d,i)=>d.classList.toggle("hit",i===beat));
+    // pendulum swing L/R
+    const arm=document.getElementById("pendArm"), bob=document.getElementById("pendBob");
+    if(arm){ const dir=beat%2===0?-32:32;
+      arm.setAttribute("x2",110+dir); bob.setAttribute("cx",110+dir);
+      arm.style.transition=bob.style.transition=`all ${(60/this.bpm)*0.85}s ease-in-out`;
+    }
+  }
+};
+</script>
+<script>
+/* ============================================================
+   MODULE: KUIS (quiz engine — 4 categories, generated questions)
+   ============================================================ */
+const Quiz={
+  active:null, idx:0, score:0, answered:false, questions:[],
+  cats:[
+    {id:"chord", label:"Chord & Strumming"},
+    {id:"scale", label:"Scales & Soloing"},
+    {id:"finger",label:"Fingerpicking"},
+    {id:"theory",label:"Teori Musik"},
+  ],
+  render(){
+    const v=document.getElementById("view-kuis");
+    v.innerHTML = moduleHead("Modul 05 — Uji Pemahaman","Kuis",
+      "Sepuluh soal acak per sesi. Jawaban salah disertai penjelasan. Lima skor terakhir tersimpan per kategori.")
+      + `<div id="quizHome"></div><div id="quizPlay" style="display:none"></div>`;
+    this.home();
+  },
+  home(){
+    document.getElementById("quizPlay").style.display="none";
+    const home=document.getElementById("quizHome"); home.style.display="block";
+    home.innerHTML=`<div class="quiz-cats">`+this.cats.map(c=>{
+      const hist=State.data.quiz[c.id]||[];
+      const best=hist.length?Math.max(...hist.map(h=>h.score)):null;
+      return `<div class="card quiz-cat">
+        <h3>${c.label}</h3>
+        <div class="quiz-hist">${hist.length?hist.map(h=>`<span class="pill">${h.score}/10</span>`).join(""):'<span class="dim">Belum ada riwayat</span>'}</div>
+        ${best!==null?`<div class="dim small">Terbaik: ${best}/10</div>`:""}
+        <button class="btn btn-primary" data-quiz="${c.id}">Mulai Kuis</button>
+      </div>`;
+    }).join("")+`</div>`;
+    document.querySelectorAll("[data-quiz]").forEach(b=>b.addEventListener("click",()=>this.start(b.dataset.quiz)));
+  },
+  start(catId){
+    this.active=catId; this.idx=0; this.score=0; this.answered=false;
+    this.questions=this.generate(catId);
+    document.getElementById("quizHome").style.display="none";
+    const play=document.getElementById("quizPlay"); play.style.display="block";
+    this.renderQ();
+  },
+  renderQ(){
+    const play=document.getElementById("quizPlay");
+    if(this.idx>=this.questions.length) return this.finish();
+    const q=this.questions[this.idx];
+    play.innerHTML=`<div class="card quiz-q">
+      <div class="quiz-meta"><span>Soal ${this.idx+1}/${this.questions.length}</span><span>Skor: ${this.score}</span></div>
+      <div class="bar quiz-bar"><i style="width:${this.idx/this.questions.length*100}%"></i></div>
+      <h3 class="q-text">${q.q}</h3>
+      ${q.svg||""}
+      <div class="opts">${q.opts.map((o,i)=>`<button class="opt" data-opt="${i}">${o}</button>`).join("")}</div>
+      <div class="explain" id="explain" style="display:none"></div>
+      <button class="btn btn-primary" id="nextQ" style="display:none">${this.idx+1<this.questions.length?'Lanjut':'Lihat Hasil'}</button>
+    </div>`;
+    play.querySelectorAll(".opt").forEach(b=>b.addEventListener("click",()=>this.answer(+b.dataset.opt)));
+    document.getElementById("nextQ").addEventListener("click",()=>{this.idx++;this.answered=false;this.renderQ();});
+  },
+  answer(i){
+    if(this.answered) return; this.answered=true;
+    const q=this.questions[this.idx];
+    document.querySelectorAll(".opt").forEach((b,idx)=>{
+      b.disabled=true;
+      if(idx===q.a) b.classList.add("correct");
+      else if(idx===i) b.classList.add("wrong");
+    });
+    if(i===q.a) this.score++;
+    const ex=document.getElementById("explain"); ex.style.display="block";
+    ex.innerHTML=`${i===q.a?'<b class="ok">Benar.</b>':`<b class="bad">Salah.</b> Jawaban: <b>${q.opts[q.a]}</b>. `}${q.exp||""}`;
+    document.querySelector(".quiz-meta").lastElementChild.textContent="Skor: "+this.score;
+    document.getElementById("nextQ").style.display="inline-block";
+  },
+  finish(){
+    State.addQuiz(this.active,this.score);
+    const pct=this.score/this.questions.length;
+    const badge = pct>=0.8?{t:"Luar Biasa",c:"var(--ok)"}: pct>=0.5?{t:"Cukup Baik",c:"var(--accent)"}:{t:"Perlu Latihan",c:"var(--bad)"};
+    document.getElementById("quizPlay").innerHTML=`<div class="card quiz-result">
+      <div class="result-badge" style="border-color:${badge.c};color:${badge.c}">${badge.t}</div>
+      <div class="result-score">${this.score}<span>/${this.questions.length}</span></div>
+      <p class="dim">Kategori: ${this.cats.find(c=>c.id===this.active).label}</p>
+      <div class="result-actions">
+        <button class="btn btn-primary" id="retryQ">Ulangi</button>
+        <button class="btn" id="backQ">Kembali ke Kategori</button>
+      </div></div>`;
+    document.getElementById("retryQ").addEventListener("click",()=>this.start(this.active));
+    document.getElementById("backQ").addEventListener("click",()=>this.home());
+  },
+  // ---- question generators ----
+  shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;},
+  pick(a){return a[Math.floor(Math.random()*a.length)];},
+  mc(q,correct,distractors,exp,svg){
+    const opts=this.shuffle([correct,...distractors]); 
+    return {q,opts,a:opts.indexOf(correct),exp,svg};
+  },
+  generate(catId){
+    const out=[]; const used=new Set();
+    const guard=fn=>{let q,k,tries=0;do{q=fn();k=q.q+JSON.stringify(q.opts);tries++;}while(used.has(k)&&tries<12);used.add(k);return q;};
+    const gens={
+      chord:()=>{
+        const c=this.pick(CHORDS.filter(x=>["open","barre","ext"].includes(x.cat)));
+        const others=this.shuffle(CHORDS.filter(x=>x.n!==c.n)).slice(0,3).map(x=>x.n);
+        return this.mc("Chord apa yang ditunjukkan diagram ini?",c.n,others,
+          `Diagram menampilkan posisi jari untuk chord ${c.n}.`, `<div class="q-diagram">${ChordDict.diagram(c)}</div>`);
+      },
+      scale:()=>{
+        const opts=[
+          {q:"Tangga nada apa yang paling cocok untuk improvisasi blues?",a:"Blues / Pentatonik Minor",d:["Mayor Natural","Mode Lydian","Tangga nada kromatik penuh"],e:"Blues scale (pentatonik minor + b5) adalah pilihan utama untuk solo blues."},
+          {q:"Nada tambahan apa yang membedakan blues scale dari pentatonik minor?",a:"b5 (blue note)",d:["b2","mayor 7","b6"],e:"Blue note (b5) menambah ketegangan khas blues sebagai passing tone."},
+          {q:"Teknik apa yang menaikkan pitch dengan mendorong senar?",a:"Bending",d:["Palm mute","Slide","Tapping"],e:"Bend penuh menaikkan pitch sebesar 1 nada (2 fret)."},
+          {q:"Hammer-on dan pull-off adalah dasar dari teknik apa?",a:"Legato",d:["Staccato","Tremolo","Sweep picking"],e:"Legato menyambung nada tanpa petik ulang setiap nada."},
+        ];
+        const o=this.pick(opts); return this.mc(o.q,o.a,o.d,o.e);
+      },
+      finger:()=>{
+        const opts=[
+          {q:"Dalam notasi fingerstyle (p-i-m-a), huruf 'p' merujuk ke jari apa?",a:"Jempol (bass)",d:["Telunjuk","Kelingking","Jari tengah"],e:"'p' (pulgar) = jempol, memainkan senar bass 4–6."},
+          {q:"Pola bass bergantian yang dimainkan jempol disebut?",a:"Alternating bass (Travis picking)",d:["Tremolo","Sweep","Tapping"],e:"Travis picking memakai alternating bass jempol di bawah melodi."},
+          {q:"Senar mana yang biasanya dimainkan jari i-m-a?",a:"Senar 1–3 (treble)",d:["Senar 4–6","Hanya senar 6","Semua senar bergantian"],e:"i-m-a memainkan senar treble; jempol menangani bass."},
+          {q:"Harmonik alami paling jelas dibunyikan di fret berapa?",a:"Fret 12",d:["Fret 1","Fret 4","Fret 8"],e:"Fret 12 (juga 7 & 5) menghasilkan harmonik alami yang jelas."},
+        ];
+        const o=this.pick(opts); return this.mc(o.q,o.a,o.d,o.e);
+      },
+      theory:()=>{
+        const r=Math.random();
+        if(r<0.45){
+          // fretboard note id
+          const st=Math.floor(Math.random()*6), f=1+Math.floor(Math.random()*11);
+          const name=CHROMA[midiToPc(noteAt(st,f))];
+          const distract=this.shuffle(CHROMA.filter(x=>x!==name)).slice(0,3);
+          return this.mc(`Nada apa di senar ${TUNING[st].label} fret ${f}?`,name,distract,
+            `Senar ${st+1} terbuka = ${CHROMA[midiToPc(TUNING[st].midi)]}; naik ${f} fret menghasilkan ${name}.`);
+        } else if(r<0.75){
+          // interval
+          const root=Math.floor(Math.random()*12);
+          const iv=this.pick([{n:"perfect fifth",s:7},{n:"perfect fourth",s:5},{n:"mayor third",s:4},{n:"oktaf",s:12}]);
+          const target=CHROMA[(root+iv.s)%12];
+          const distract=this.shuffle(CHROMA.filter(x=>x!==target)).slice(0,3);
+          return this.mc(`Interval ${iv.n} di atas ${CHROMA[root]} adalah nada apa?`,target,distract,
+            `${iv.n} = ${iv.s} semitone, jadi ${CHROMA[root]} → ${target}.`);
+        } else {
+          const opts=[
+            {q:"Triad minor dibangun dari interval apa?",a:"1 – b3 – 5",d:["1 – 3 – 5","1 – 3 – b5","1 – b3 – b5"],e:"Minor = root, third minor (b3), perfect fifth."},
+            {q:"Progresi diatonik di C mayor untuk derajat I–IV–V adalah?",a:"C – F – G",d:["C – G – Am","C – Dm – Em","C – Em – Am"],e:"Derajat 1, 4, 5 di C mayor = C, F, G."},
+            {q:"Rumus jarak tangga nada mayor adalah?",a:"W–W–H–W–W–W–H",d:["W–H–W–W–H–W–W","H–W–W–W–H–W–W","W–W–W–H–W–W–H"],e:"Mayor: whole-whole-half-whole-whole-whole-half."},
+          ];
+          const o=this.pick(opts); return this.mc(o.q,o.a,o.d,o.e);
+        }
+      },
+    };
+    for(let i=0;i<10;i++) out.push(guard(gens[catId]));
+    return out;
+  }
+};
+
+/* ============================================================
+   MODULE: BOOT
+   ============================================================ */
+function boot(){
+  State.load();
+  buildNav();
+  Pelajaran.render();
+  Fretboard.render();
+  ChordDict.render();
+  Metronome.render();
+  Quiz.render();
+  renderSidebarProgress();
+  go("pelajaran");
+}
+document.addEventListener("DOMContentLoaded",boot);
+
+/* ---- minimal service worker (cache-first for offline launch) ---- */
+if("serviceWorker" in navigator && navigator.serviceWorker && typeof navigator.serviceWorker.register==="function"){
+  const swCode=`
+    const C="guitarpath-v1";
+    self.addEventListener("install",e=>{self.skipWaiting();});
+    self.addEventListener("activate",e=>{e.waitUntil(self.clients.claim());});
+    self.addEventListener("fetch",e=>{
+      if(e.request.method!=="GET") return;
+      e.respondWith(
+        caches.open(C).then(cache=>cache.match(e.request).then(hit=>{
+          const net=fetch(e.request).then(res=>{
+            // cache same-origin GETs; fonts are left to HTTP cache
+            if(res && res.status===200 && e.request.url.startsWith(self.location.origin))
+              cache.put(e.request,res.clone());
+            return res;
+          }).catch(()=>hit);
+          return hit||net;
+        }))
+      );
+    });`;
+  const blob=new Blob([swCode],{type:"text/javascript"});
+  navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{/* file:// will reject; harmless */});
+}
+</script>
+</body>
+</html>
