@@ -103,6 +103,7 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
   color:var(--text-dim);width:100%;transition:background .12s,color .12s,border-color .12s;
 }
 .nav-btn .ico{width:18px;height:18px;flex:0 0 18px;color:currentColor}
+.nav-btn .lbl-short{display:none}
 .nav-btn:hover{color:var(--text);background:var(--surface-2)}
 .nav-btn.active{color:var(--accent);background:var(--surface-2);border-color:var(--line)}
 
@@ -160,14 +161,17 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
   .sidebar{
     position:fixed;inset:auto 0 0 0;top:auto;height:auto;width:100%;
     flex-direction:row;border-right:none;border-top:1px solid var(--line);
-    padding:6px 6px env(safe-area-inset-bottom);overflow:visible;
+    padding:6px 4px env(safe-area-inset-bottom);overflow:visible;
+    background:var(--surface);
   }
   .brand,.side-progress{display:none}
-  .nav{flex-direction:row;margin:0;width:100%;gap:2px}
-  .nav-btn{flex-direction:column;gap:3px;font-size:10px;padding:8px 2px;border:none;border-radius:6px;justify-content:center}
-  .nav-btn .ico{width:20px;height:20px}
-  .nav-btn span.lbl{font-size:10px}
-  .main{margin-left:0;padding:20px 16px 88px}
+  .nav{flex-direction:row;margin:0;width:100%;gap:0}
+  .nav-btn{flex:1 1 0;min-width:0;flex-direction:column;gap:3px;font-size:10px;padding:7px 1px;border:none;border-radius:6px;justify-content:center;text-align:center}
+  .nav-btn .ico{width:21px;height:21px}
+  .nav-btn .lbl{font-size:10px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .nav-btn .lbl-full{display:none}
+  .nav-btn .lbl-short{display:block}
+  .main{margin-left:0;padding:20px 16px 84px}
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -223,14 +227,19 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
 .chip{background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:6px 14px;font-size:12.5px;color:var(--text-dim);transition:.12s}
 .chip:hover{color:var(--text)}
 .chip.on{background:var(--accent);color:#0F0F0F;border-color:var(--accent);font-weight:600}
-.chord-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.chord-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;align-items:stretch}
 .chord-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 10px;display:flex;flex-direction:column;align-items:center;gap:4px;transition:border-color .12s,transform .08s;text-align:center}
 .chord-card:hover{border-color:var(--accent)}
 .chord-card.flash{border-color:var(--interactive);transform:scale(.97)}
+.chord-play{background:none;border:none;padding:0;width:100%;display:flex;justify-content:center;cursor:pointer}
 .chord-svg{width:100%;max-width:120px}
 .chord-name{font-family:var(--font-display);font-weight:700;font-size:15px}
 .chord-cat{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim)}
 .chord-note{font-size:10.5px;color:var(--interactive);margin-top:2px}
+.voicing-toggle{display:flex;gap:4px;margin-top:auto;padding-top:8px;width:100%}
+.vtog{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:6px 4px;font-size:11px;font-weight:500;color:var(--text-dim);transition:.12s}
+.vtog:hover{color:var(--text);border-color:var(--accent)}
+.vtog.on{background:var(--accent);color:#0F0F0F;border-color:var(--accent);font-weight:600}
 
 /* ============================================================
    VIEW: METRONOM
@@ -433,75 +442,136 @@ const TRACKS = [
 ];
 
 /* ============================================================
-   MODULE: DATA — chord library (20+). Positions generated to SVG.
-   pos: per string 1..6 -> {f:fret(0=open,-1=mute), fin:finger 1-4 or 0}
-   barre: optional {fromString, toString, fret, finger}
+   MODULE: DATA — chord library (grouped voicings per chord name)
+   Each chord has one or more voicings; the UI toggles between them.
+   A voicing: {type, pos[string1..6], barre?, dropD?, note?}
+     pos entry: {f:fret(0=open,-1=mute), fin:finger 1-4 or 0}
+   Every voicing's note content is verified note-by-note (see audit).
    ============================================================ */
-/* Each chord's note content is verified note-by-note against music theory.
-   pos is string 1..6 (high E first). All voicings below passed the audit. */
-const CHORDS = [
-  // ---- OPEN (mayor & minor) ----
-  {n:"E",     cat:"open",  pos:[{f:0},{f:0},{f:1,fin:1},{f:2,fin:3},{f:2,fin:2},{f:0}]},
-  {n:"A",     cat:"open",  pos:[{f:0},{f:2,fin:3},{f:2,fin:2},{f:2,fin:1},{f:0},{f:-1}]},
-  {n:"D",     cat:"open",  pos:[{f:2,fin:2},{f:3,fin:3},{f:2,fin:1},{f:0},{f:-1},{f:-1}]},
-  {n:"G",     cat:"open",  pos:[{f:3,fin:4},{f:0},{f:0},{f:0},{f:2,fin:1},{f:3,fin:2}]},
-  {n:"C",     cat:"open",  pos:[{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:3,fin:3},{f:-1}]},
-  {n:"Em",    cat:"open",  pos:[{f:0},{f:0},{f:0},{f:2,fin:3},{f:2,fin:2},{f:0}]},
-  {n:"Am",    cat:"open",  pos:[{f:0},{f:1,fin:1},{f:2,fin:3},{f:2,fin:2},{f:0},{f:-1}]},
-  {n:"Dm",    cat:"open",  pos:[{f:1,fin:1},{f:3,fin:3},{f:2,fin:2},{f:0},{f:-1},{f:-1}]},
-  // ---- BARRE (moveable mayor/minor shapes) ----
-  {n:"F",          cat:"barre", pos:[{f:1},{f:1},{f:2,fin:2},{f:3,fin:4},{f:3,fin:3},{f:1}], barre:{fromString:1,toString:6,fret:1,finger:1}, _note:"Bentuk E digeser"},
-  {n:"F#",         cat:"barre", pos:[{f:2},{f:2},{f:3,fin:2},{f:4,fin:4},{f:4,fin:3},{f:2}], barre:{fromString:1,toString:6,fret:2,finger:1}, _note:"Bentuk E, fret 2"},
-  {n:"G (barre)",  cat:"barre", pos:[{f:3},{f:3},{f:4,fin:2},{f:5,fin:4},{f:5,fin:3},{f:3}], barre:{fromString:1,toString:6,fret:3,finger:1}, _note:"Bentuk E, fret 3"},
-  {n:"Ab",         cat:"barre", pos:[{f:4},{f:4},{f:5,fin:2},{f:6,fin:4},{f:6,fin:3},{f:4}], barre:{fromString:1,toString:6,fret:4,finger:1}, _note:"Bentuk E, fret 4"},
-  {n:"Bm",         cat:"barre", pos:[{f:2},{f:3,fin:2},{f:4,fin:4},{f:4,fin:3},{f:2},{f:-1}], barre:{fromString:1,toString:5,fret:2,finger:1}, _note:"Bentuk Am, fret 2"},
-  {n:"C (barre)",  cat:"barre", pos:[{f:3},{f:5,fin:2},{f:5,fin:3},{f:5,fin:4},{f:3},{f:-1}], barre:{fromString:1,toString:5,fret:3,finger:1}, _note:"Bentuk A, fret 3"},
-  {n:"C#m",        cat:"barre", pos:[{f:4},{f:5,fin:2},{f:6,fin:4},{f:6,fin:3},{f:4},{f:-1}], barre:{fromString:1,toString:5,fret:4,finger:1}, _note:"Bentuk Am, fret 4"},
-  {n:"Eb",         cat:"barre", pos:[{f:6},{f:8,fin:2},{f:8,fin:3},{f:8,fin:4},{f:6},{f:-1}], barre:{fromString:1,toString:5,fret:6,finger:1}, _note:"Bentuk A, fret 6"},
-  {n:"F#m",        cat:"barre", pos:[{f:2},{f:2},{f:2},{f:4,fin:3},{f:4,fin:4},{f:2}], barre:{fromString:1,toString:6,fret:2,finger:1}, _note:"Bentuk Em, fret 2"},
-  {n:"Bb",         cat:"barre", pos:[{f:1},{f:3,fin:2},{f:3,fin:3},{f:3,fin:4},{f:1},{f:-1}], barre:{fromString:1,toString:5,fret:1,finger:1}, _note:"Bentuk A, fret 1"},
-  // ---- POWER (5th) ----
-  {n:"E5",    cat:"power", pos:[{f:-1},{f:-1},{f:-1},{f:2,fin:3},{f:2,fin:2},{f:0}]},
-  {n:"A5",    cat:"power", pos:[{f:-1},{f:-1},{f:2,fin:3},{f:2,fin:2},{f:0},{f:-1}]},
-  {n:"D5",    cat:"power", pos:[{f:-1},{f:3,fin:4},{f:2,fin:3},{f:0},{f:-1},{f:-1}]},
-  {n:"G5",    cat:"power", pos:[{f:-1},{f:-1},{f:-1},{f:5,fin:3},{f:5,fin:2},{f:3,fin:1}]},
-  {n:"C5",    cat:"power", pos:[{f:-1},{f:-1},{f:5,fin:4},{f:5,fin:3},{f:3,fin:1},{f:-1}]},
-  {n:"F5",    cat:"power", pos:[{f:-1},{f:-1},{f:-1},{f:3,fin:3},{f:3,fin:2},{f:1,fin:1}]},
-  // ---- EXTENDED (7th, maj7, sus, add) ----
-  {n:"A7",    cat:"ext",   pos:[{f:0},{f:2,fin:3},{f:0},{f:2,fin:2},{f:0},{f:-1}]},
-  {n:"E7",    cat:"ext",   pos:[{f:0},{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:0}]},
-  {n:"D7",    cat:"ext",   pos:[{f:2,fin:3},{f:1,fin:1},{f:2,fin:2},{f:0},{f:-1},{f:-1}]},
-  {n:"B7",    cat:"ext",   pos:[{f:2,fin:4},{f:0},{f:2,fin:3},{f:1,fin:1},{f:2,fin:2},{f:-1}]},
-  {n:"C7",    cat:"ext",   pos:[{f:0},{f:1,fin:1},{f:3,fin:4},{f:2,fin:2},{f:3,fin:3},{f:-1}]},
-  {n:"G7",    cat:"ext",   pos:[{f:1,fin:1},{f:0},{f:0},{f:0},{f:2,fin:2},{f:3,fin:3}]},
-  {n:"Am7",   cat:"ext",   pos:[{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:0},{f:-1}]},
-  {n:"Dm7",   cat:"ext",   pos:[{f:1,fin:1},{f:1,fin:1},{f:2,fin:2},{f:0},{f:-1},{f:-1}], barre:{fromString:1,toString:2,fret:1,finger:1}},
-  {n:"Em7",   cat:"ext",   pos:[{f:0},{f:0},{f:0},{f:0},{f:2,fin:2},{f:0}]},
-  {n:"Cmaj7", cat:"ext",   pos:[{f:0},{f:0},{f:0},{f:2,fin:2},{f:3,fin:3},{f:-1}]},
-  {n:"Gmaj7", cat:"ext",   pos:[{f:2,fin:3},{f:0},{f:0},{f:0},{f:2,fin:1},{f:3,fin:2}]},
-  {n:"Amaj7", cat:"ext",   pos:[{f:0},{f:2,fin:2},{f:1,fin:1},{f:2,fin:3},{f:0},{f:-1}]},
-  {n:"Dmaj7", cat:"ext",   pos:[{f:2,fin:1},{f:2,fin:1},{f:2,fin:1},{f:0},{f:-1},{f:-1}], barre:{fromString:1,toString:3,fret:2,finger:1}},
-  {n:"Fmaj7", cat:"ext",   pos:[{f:0},{f:1,fin:1},{f:2,fin:3},{f:3,fin:4},{f:-1},{f:-1}]},
-  {n:"Dsus2", cat:"ext",   pos:[{f:0},{f:3,fin:3},{f:2,fin:1},{f:0},{f:-1},{f:-1}]},
-  {n:"Asus4", cat:"ext",   pos:[{f:0},{f:3,fin:4},{f:2,fin:2},{f:2,fin:1},{f:0},{f:-1}]},
-  {n:"Esus4", cat:"ext",   pos:[{f:0},{f:0},{f:2,fin:2},{f:2,fin:3},{f:2,fin:1},{f:0}]},
-  {n:"Cadd9", cat:"ext",   pos:[{f:3,fin:3},{f:3,fin:4},{f:0},{f:2,fin:2},{f:3,fin:1},{f:-1}]},
-  // ---- METAL (drop-D power) ----
-  {n:"D5 (Drop-D)",  cat:"metal", pos:[{f:-1},{f:-1},{f:-1},{f:0},{f:0},{f:0}], _dropD:true, _note:"Setem senar 6 ke D"},
-  {n:"E5 (Drop-D)",  cat:"metal", pos:[{f:-1},{f:-1},{f:-1},{f:2,fin:1},{f:2,fin:1},{f:2,fin:1}], _dropD:true, _note:"Barre 1 jari, fret 2"},
-  {n:"G5 (Drop-D)",  cat:"metal", pos:[{f:-1},{f:-1},{f:-1},{f:5,fin:1},{f:5,fin:1},{f:5,fin:1}], _dropD:true, _note:"Barre 1 jari, fret 5"},
-  {n:"A5 (Drop-D)",  cat:"metal", pos:[{f:-1},{f:-1},{f:-1},{f:7,fin:1},{f:7,fin:1},{f:7,fin:1}], _dropD:true, _note:"Barre 1 jari, fret 7"},
+const CHORDS_RAW = [
+  // ===== MAJOR (open + barre) =====
+  {n:"A",  cat:"open", voicings:[
+    {type:"Terbuka", pos:[{f:0},{f:2,fin:3},{f:2,fin:2},{f:2,fin:1},{f:0},{f:-1}]},
+    {type:"Barre",   pos:[{f:5},{f:5},{f:6,fin:2},{f:7,fin:4},{f:7,fin:3},{f:5}], barre:{fromString:1,toString:6,fret:5,finger:1}, note:"Bentuk E, fret 5"},
+  ]},
+  {n:"Bb", cat:"barre", voicings:[
+    {type:"Barre", pos:[{f:1},{f:3,fin:2},{f:3,fin:3},{f:3,fin:4},{f:1},{f:-1}], barre:{fromString:1,toString:5,fret:1,finger:1}, note:"Bentuk A, fret 1"},
+  ]},
+  {n:"B",  cat:"barre", voicings:[
+    {type:"Barre", pos:[{f:2},{f:4,fin:2},{f:4,fin:3},{f:4,fin:4},{f:2},{f:-1}], barre:{fromString:1,toString:5,fret:2,finger:1}, note:"Bentuk A, fret 2"},
+  ]},
+  {n:"C",  cat:"open", voicings:[
+    {type:"Terbuka", pos:[{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:3,fin:3},{f:-1}]},
+    {type:"Barre",   pos:[{f:8},{f:8},{f:9,fin:2},{f:10,fin:4},{f:10,fin:3},{f:8}], barre:{fromString:1,toString:6,fret:8,finger:1}, note:"Bentuk E, fret 8"},
+  ]},
+  {n:"D",  cat:"open", voicings:[
+    {type:"Terbuka", pos:[{f:2,fin:2},{f:3,fin:3},{f:2,fin:1},{f:0},{f:-1},{f:-1}]},
+    {type:"Barre",   pos:[{f:5},{f:7,fin:2},{f:7,fin:3},{f:7,fin:4},{f:5},{f:-1}], barre:{fromString:1,toString:5,fret:5,finger:1}, note:"Bentuk A, fret 5"},
+  ]},
+  {n:"Eb", cat:"barre", voicings:[
+    {type:"Barre", pos:[{f:6},{f:8,fin:2},{f:8,fin:3},{f:8,fin:4},{f:6},{f:-1}], barre:{fromString:1,toString:5,fret:6,finger:1}, note:"Bentuk A, fret 6"},
+  ]},
+  {n:"E",  cat:"open", voicings:[
+    {type:"Terbuka", pos:[{f:0},{f:0},{f:1,fin:1},{f:2,fin:3},{f:2,fin:2},{f:0}]},
+    {type:"Barre",   pos:[{f:7},{f:9,fin:2},{f:9,fin:3},{f:9,fin:4},{f:7},{f:-1}], barre:{fromString:1,toString:5,fret:7,finger:1}, note:"Bentuk A, fret 7"},
+  ]},
+  {n:"F",  cat:"barre", voicings:[
+    {type:"Barre", pos:[{f:1},{f:1},{f:2,fin:2},{f:3,fin:4},{f:3,fin:3},{f:1}], barre:{fromString:1,toString:6,fret:1,finger:1}, note:"Bentuk E, fret 1"},
+  ]},
+  {n:"F#", cat:"barre", voicings:[
+    {type:"Barre", pos:[{f:2},{f:2},{f:3,fin:2},{f:4,fin:4},{f:4,fin:3},{f:2}], barre:{fromString:1,toString:6,fret:2,finger:1}, note:"Bentuk E, fret 2"},
+  ]},
+  {n:"G",  cat:"open", voicings:[
+    {type:"Terbuka", pos:[{f:3,fin:4},{f:0},{f:0},{f:0},{f:2,fin:1},{f:3,fin:2}]},
+    {type:"Barre",   pos:[{f:3},{f:3},{f:4,fin:2},{f:5,fin:4},{f:5,fin:3},{f:3}], barre:{fromString:1,toString:6,fret:3,finger:1}, note:"Bentuk E, fret 3"},
+  ]},
+  {n:"Ab", cat:"barre", voicings:[
+    {type:"Barre", pos:[{f:4},{f:4},{f:5,fin:2},{f:6,fin:4},{f:6,fin:3},{f:4}], barre:{fromString:1,toString:6,fret:4,finger:1}, note:"Bentuk E, fret 4"},
+  ]},
+  // ===== MINOR (open + barre) =====
+  {n:"Am", cat:"open", voicings:[
+    {type:"Terbuka", pos:[{f:0},{f:1,fin:1},{f:2,fin:3},{f:2,fin:2},{f:0},{f:-1}]},
+    {type:"Barre",   pos:[{f:5},{f:5},{f:5},{f:7,fin:3},{f:7,fin:4},{f:5}], barre:{fromString:1,toString:6,fret:5,finger:1}, note:"Bentuk Em, fret 5"},
+  ]},
+  {n:"Bm", cat:"barre", voicings:[
+    {type:"Barre", pos:[{f:2},{f:3,fin:2},{f:4,fin:4},{f:4,fin:3},{f:2},{f:-1}], barre:{fromString:1,toString:5,fret:2,finger:1}, note:"Bentuk Am, fret 2"},
+  ]},
+  {n:"C#m",cat:"barre", voicings:[
+    {type:"Barre", pos:[{f:4},{f:5,fin:2},{f:6,fin:4},{f:6,fin:3},{f:4},{f:-1}], barre:{fromString:1,toString:5,fret:4,finger:1}, note:"Bentuk Am, fret 4"},
+  ]},
+  {n:"Dm", cat:"open", voicings:[
+    {type:"Terbuka", pos:[{f:1,fin:1},{f:3,fin:3},{f:2,fin:2},{f:0},{f:-1},{f:-1}]},
+    {type:"Barre",   pos:[{f:5},{f:6,fin:2},{f:7,fin:4},{f:7,fin:3},{f:5},{f:-1}], barre:{fromString:1,toString:5,fret:5,finger:1}, note:"Bentuk Am, fret 5"},
+  ]},
+  {n:"Em", cat:"open", voicings:[
+    {type:"Terbuka", pos:[{f:0},{f:0},{f:0},{f:2,fin:3},{f:2,fin:2},{f:0}]},
+    {type:"Barre",   pos:[{f:7},{f:8,fin:2},{f:9,fin:4},{f:9,fin:3},{f:7},{f:-1}], barre:{fromString:1,toString:5,fret:7,finger:1}, note:"Bentuk Am, fret 7"},
+  ]},
+  {n:"F#m",cat:"barre", voicings:[
+    {type:"Barre", pos:[{f:2},{f:2},{f:2},{f:4,fin:3},{f:4,fin:4},{f:2}], barre:{fromString:1,toString:6,fret:2,finger:1}, note:"Bentuk Em, fret 2"},
+  ]},
+  // ===== POWER (5th) =====
+  {n:"E5", cat:"power", voicings:[{type:"Power", pos:[{f:-1},{f:-1},{f:-1},{f:2,fin:3},{f:2,fin:2},{f:0}]}]},
+  {n:"A5", cat:"power", voicings:[{type:"Power", pos:[{f:-1},{f:-1},{f:2,fin:3},{f:2,fin:2},{f:0},{f:-1}]}]},
+  {n:"D5", cat:"power", voicings:[{type:"Power", pos:[{f:-1},{f:3,fin:4},{f:2,fin:3},{f:0},{f:-1},{f:-1}]}]},
+  {n:"G5", cat:"power", voicings:[{type:"Power", pos:[{f:-1},{f:-1},{f:-1},{f:5,fin:3},{f:5,fin:2},{f:3,fin:1}]}]},
+  {n:"C5", cat:"power", voicings:[{type:"Power", pos:[{f:-1},{f:-1},{f:5,fin:4},{f:5,fin:3},{f:3,fin:1},{f:-1}]}]},
+  {n:"F5", cat:"power", voicings:[{type:"Power", pos:[{f:-1},{f:-1},{f:-1},{f:3,fin:3},{f:3,fin:2},{f:1,fin:1}]}]},
+  // ===== EXTENDED (7th, maj7, sus, add) =====
+  {n:"A7",   cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:2,fin:3},{f:0},{f:2,fin:2},{f:0},{f:-1}]}]},
+  {n:"E7",   cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:0}]}]},
+  {n:"D7",   cat:"ext", voicings:[{type:"Terbuka", pos:[{f:2,fin:3},{f:1,fin:1},{f:2,fin:2},{f:0},{f:-1},{f:-1}]}]},
+  {n:"B7",   cat:"ext", voicings:[{type:"Terbuka", pos:[{f:2,fin:4},{f:0},{f:2,fin:3},{f:1,fin:1},{f:2,fin:2},{f:-1}]}]},
+  {n:"C7",   cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:1,fin:1},{f:3,fin:4},{f:2,fin:2},{f:3,fin:3},{f:-1}]}]},
+  {n:"G7",   cat:"ext", voicings:[{type:"Terbuka", pos:[{f:1,fin:1},{f:0},{f:0},{f:0},{f:2,fin:2},{f:3,fin:3}]}]},
+  {n:"Am7",  cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:0},{f:-1}]}]},
+  {n:"Dm7",  cat:"ext", voicings:[{type:"Terbuka", pos:[{f:1,fin:1},{f:1,fin:1},{f:2,fin:2},{f:0},{f:-1},{f:-1}], barre:{fromString:1,toString:2,fret:1,finger:1}}]},
+  {n:"Em7",  cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:0},{f:0},{f:0},{f:2,fin:2},{f:0}]}]},
+  {n:"Cmaj7",cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:0},{f:0},{f:2,fin:2},{f:3,fin:3},{f:-1}]}]},
+  {n:"Gmaj7",cat:"ext", voicings:[{type:"Terbuka", pos:[{f:2,fin:3},{f:0},{f:0},{f:0},{f:2,fin:1},{f:3,fin:2}]}]},
+  {n:"Amaj7",cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:2,fin:2},{f:1,fin:1},{f:2,fin:3},{f:0},{f:-1}]}]},
+  {n:"Dmaj7",cat:"ext", voicings:[{type:"Terbuka", pos:[{f:2,fin:1},{f:2,fin:1},{f:2,fin:1},{f:0},{f:-1},{f:-1}], barre:{fromString:1,toString:3,fret:2,finger:1}}]},
+  {n:"Fmaj7",cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:1,fin:1},{f:2,fin:3},{f:3,fin:4},{f:-1},{f:-1}]}]},
+  {n:"Dsus2",cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:3,fin:3},{f:2,fin:1},{f:0},{f:-1},{f:-1}]}]},
+  {n:"Asus4",cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:3,fin:4},{f:2,fin:2},{f:2,fin:1},{f:0},{f:-1}]}]},
+  {n:"Esus4",cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:0},{f:2,fin:2},{f:2,fin:3},{f:2,fin:1},{f:0}]}]},
+  {n:"Cadd9",cat:"ext", voicings:[{type:"Terbuka", pos:[{f:3,fin:3},{f:3,fin:4},{f:0},{f:2,fin:2},{f:3,fin:1},{f:-1}]}]},
+  // ===== METAL (drop-D power) =====
+  {n:"D5 (Drop-D)", cat:"metal", voicings:[{type:"Drop-D", pos:[{f:-1},{f:-1},{f:-1},{f:0},{f:0},{f:0}], dropD:true, note:"Setem senar 6 ke D"}]},
+  {n:"E5 (Drop-D)", cat:"metal", voicings:[{type:"Drop-D", pos:[{f:-1},{f:-1},{f:-1},{f:2,fin:1},{f:2,fin:1},{f:2,fin:1}], dropD:true, note:"Barre 1 jari, fret 2"}]},
+  {n:"G5 (Drop-D)", cat:"metal", voicings:[{type:"Drop-D", pos:[{f:-1},{f:-1},{f:-1},{f:5,fin:1},{f:5,fin:1},{f:5,fin:1}], dropD:true, note:"Barre 1 jari, fret 5"}]},
+  {n:"A5 (Drop-D)", cat:"metal", voicings:[{type:"Drop-D", pos:[{f:-1},{f:-1},{f:-1},{f:7,fin:1},{f:7,fin:1},{f:7,fin:1}], dropD:true, note:"Barre 1 jari, fret 7"}]},
 ];
 
-// MIDI notes a chord produces (for arpeggio playback), respecting mute/open.
-function chordMidiNotes(ch){
+// Sort chords musically: by root pitch-class (C, C#, D…), then quality rank.
+const ROOT_ORDER={"C":0,"C#":1,"Db":1,"D":2,"D#":3,"Eb":3,"E":4,"F":5,"F#":6,"Gb":6,"G":7,"G#":8,"Ab":8,"A":9,"A#":10,"Bb":10,"B":11};
+function chordSortKey(name){
+  // parse leading root (letter + optional #/b)
+  const m=name.match(/^([A-G][#b]?)/);
+  const root=m?m[1]:"";
+  const rootRank=ROOT_ORDER[root]!==undefined?ROOT_ORDER[root]:99;
+  const rest=name.slice(root.length);
+  // quality rank: plain major < minor < 5 < 6 < 7 < maj7 < sus < add < drop
+  let q=0;
+  if(/^m(?!aj)/.test(rest)) q=1;          // minor (m but not maj7)
+  if(/^5/.test(rest)) q=2;
+  if(/^maj7/.test(rest)) q=4;
+  else if(/7/.test(rest)) q=3;
+  if(/sus/.test(rest)) q=5;
+  if(/add/.test(rest)) q=6;
+  if(/Drop-D/.test(name)) q=9;
+  return rootRank*10+q;
+}
+const CHORDS = CHORDS_RAW.slice().sort((a,b)=>chordSortKey(a.n)-chordSortKey(b.n) || a.n.localeCompare(b.n));
+
+// MIDI notes a voicing produces (for arpeggio playback), respecting mute/open.
+function voicingMidiNotes(v){
   const notes=[];
-  // play low->high: string 6 .. string 1
   for(let s=5;s>=0;s--){
-    const p=ch.pos[s];
+    const p=v.pos[s];
     if(!p || p.f<0) continue;
     let base=TUNING[s].midi;
-    if(ch._dropD && s===5) base=38; // D2
+    if(v.dropD && s===5) base=38; // D2
     notes.push(base + p.f);
   }
   return notes;
@@ -620,18 +690,18 @@ function fretDividerSVG(){
    MODULE: APP — router, nav, sidebar progress
    ============================================================ */
 const VIEWS=[
-  {id:"pelajaran",label:"Pelajaran"},
-  {id:"fretboard",label:"Fretboard"},
-  {id:"chord",label:"Kamus Chord"},
-  {id:"metronom",label:"Metronom"},
-  {id:"tuner",label:"Tuner"},
-  {id:"kuis",label:"Kuis"},
+  {id:"pelajaran",label:"Pelajaran",short:"Belajar"},
+  {id:"fretboard",label:"Fretboard",short:"Fretboard"},
+  {id:"chord",label:"Kamus Chord",short:"Chord"},
+  {id:"metronom",label:"Metronom",short:"Metro"},
+  {id:"tuner",label:"Tuner",short:"Tuner"},
+  {id:"kuis",label:"Kuis",short:"Kuis"},
 ];
 let currentView="pelajaran";
 
 function buildNav(){
   document.getElementById("nav").innerHTML = VIEWS.map(v=>
-    `<button class="nav-btn" data-go="${v.id}">${ICON[v.id]}<span class="lbl">${v.label}</span></button>`
+    `<button class="nav-btn" data-go="${v.id}">${ICON[v.id]}<span class="lbl lbl-full">${v.label}</span><span class="lbl lbl-short">${v.short}</span></button>`
   ).join("");
   document.querySelectorAll("[data-go]").forEach(b=>
     b.addEventListener("click",()=>go(b.dataset.go)));
@@ -823,11 +893,11 @@ const Fretboard={
    MODULE: KAMUS CHORD (dictionary + programmatic SVG diagrams)
    ============================================================ */
 const ChordDict={
-  filter:"all", query:"",
+  filter:"all", query:"", sel:{},   // sel[chordName] = active voicing index
   render(){
     const v=document.getElementById("view-chord");
     v.innerHTML = moduleHead("Modul 03 — Referensi","Kamus Chord",
-      "Lebih dari 40 chord dengan diagram yang dihasilkan secara otomatis. Klik chord untuk membunyikannya sebagai arpeggio.")
+      "Diagram dihasilkan otomatis dan diurutkan menurut nada. Chord dengan beberapa posisi punya tombol untuk berganti bentuk (mis. Terbuka / Barre). Ketuk diagram untuk membunyikannya.")
       + `<div class="card chord-controls">
           <input id="chSearch" class="search" type="search" placeholder="Cari chord… (mis. Am7, F, Drop-D)">
           <div class="tag-row" id="chFilters">${CHORD_FILTERS.map(f=>
@@ -842,66 +912,96 @@ const ChordDict={
     }));
     this.grid();
   },
+  activeVoicing(c){
+    const i=this.sel[c.n]||0;
+    return c.voicings[Math.min(i,c.voicings.length-1)];
+  },
+  cardHTML(c){
+    const ci=CHORDS.indexOf(c);
+    const v=this.activeVoicing(c);
+    const idx=this.sel[c.n]||0;
+    const multi=c.voicings.length>1;
+    const toggle = multi ? `<div class="voicing-toggle" role="group">${
+      c.voicings.map((vo,j)=>`<button class="vtog ${j===idx?'on':''}" data-vt="${ci}:${j}">${vo.type}</button>`).join("")
+    }</div>` : "";
+    return `<div class="chord-card" data-card="${ci}">
+        <button class="chord-play" data-play="${ci}" aria-label="Bunyikan ${c.n}">
+          ${this.diagram(v)}
+        </button>
+        <div class="chord-name">${c.n}</div>
+        <div class="chord-cat">${v.type}</div>
+        ${v.note?`<div class="chord-note">${v.note}</div>`:""}
+        ${toggle}
+      </div>`;
+  },
   grid(){
-    const list=CHORDS.filter(c=>(this.filter==="all"||c.cat===this.filter) && c.n.toLowerCase().includes(this.query));
+    const q=this.query;
+    const list=CHORDS.filter(c=>(this.filter==="all"||c.cat===this.filter) && c.n.toLowerCase().includes(q));
     const host=document.getElementById("chordGrid");
     if(!list.length){ host.innerHTML=`<p class="dim" style="padding:20px">Tidak ada chord yang cocok. Coba kata kunci lain.</p>`; return; }
-    host.innerHTML=list.map((c,i)=>`<button class="chord-card" data-ci="${CHORDS.indexOf(c)}">
-        ${this.diagram(c)}
-        <div class="chord-name">${c.n}</div>
-        <div class="chord-cat">${({open:"Terbuka",barre:"Barre",power:"Power",ext:"Extended",metal:"Metal"})[c.cat]}</div>
-        ${c._note?`<div class="chord-note">${c._note}</div>`:""}
-      </button>`).join("");
-    document.querySelectorAll("[data-ci]").forEach(b=>b.addEventListener("click",()=>{
-      const c=CHORDS[+b.dataset.ci];
-      Audio_.arpeggio(chordMidiNotes(c),0.12);
-      b.classList.add("flash"); setTimeout(()=>b.classList.remove("flash"),300);
+    host.innerHTML=list.map(c=>this.cardHTML(c)).join("");
+    // play on diagram tap
+    host.querySelectorAll("[data-play]").forEach(b=>b.addEventListener("click",()=>{
+      const c=CHORDS[+b.dataset.play];
+      Audio_.arpeggio(voicingMidiNotes(this.activeVoicing(c)),0.12);
+      const card=b.closest(".chord-card");
+      card.classList.add("flash"); setTimeout(()=>card.classList.remove("flash"),300);
+    }));
+    // voicing toggle
+    host.querySelectorAll("[data-vt]").forEach(b=>b.addEventListener("click",e=>{
+      e.stopPropagation();
+      const [ci,j]=b.dataset.vt.split(":").map(Number);
+      const c=CHORDS[ci];
+      this.sel[c.n]=j;
+      // re-render just this card in place
+      const card=b.closest(".chord-card");
+      card.outerHTML=this.cardHTML(c);
+      this.rebind();
     }));
   },
-  // Programmatic SVG chord diagram
-  diagram(c){
+  // re-attach listeners after an in-place card swap (cheapest: rebind whole grid)
+  rebind(){
+    const host=document.getElementById("chordGrid");
+    host.querySelectorAll("[data-play]").forEach(b=>{
+      b.onclick=()=>{const c=CHORDS[+b.dataset.play];Audio_.arpeggio(voicingMidiNotes(this.activeVoicing(c)),0.12);const card=b.closest(".chord-card");card.classList.add("flash");setTimeout(()=>card.classList.remove("flash"),300);};
+    });
+    host.querySelectorAll("[data-vt]").forEach(b=>{
+      b.onclick=e=>{e.stopPropagation();const [ci,j]=b.dataset.vt.split(":").map(Number);const c=CHORDS[ci];this.sel[c.n]=j;const card=b.closest(".chord-card");card.outerHTML=this.cardHTML(c);this.rebind();};
+    });
+  },
+  // Programmatic SVG chord diagram for a voicing
+  diagram(v){
     const W=132,H=164,padX=20,padT=30,padB=18;
     const strings=6, frets=5;
     const gridW=W-padX*2, gridH=H-padT-padB;
     const sx=gridW/(strings-1), fy=gridH/frets;
-    // determine fret window (for barre chords starting above fret 1)
-    const fretted=c.pos.filter(p=>p.f>0).map(p=>p.f);
-    const hasOpen=c.pos.some(p=>p.f===0);          // any open (unfretted, unmuted) string?
+    const fretted=v.pos.filter(p=>p.f>0).map(p=>p.f);
+    const hasOpen=v.pos.some(p=>p.f===0);
     const minF=fretted.length?Math.min(...fretted):1;
     const maxF=fretted.length?Math.max(...fretted):1;
-    // A chord is nut-anchored if it uses open strings OR fits within the first 4 frets.
-    // Only a no-open-string voicing that sits beyond fret 4 is a true moveable shape
-    // needing a fret-window label (e.g. "5fr").
     const baseFret = (!hasOpen && minF>=2 && maxF>=5) ? minF : 1;
     let s=`<svg viewBox="0 0 ${W} ${H}" class="chord-svg" aria-hidden="true">`;
-    // nut or base-fret label
     if(baseFret===1){ s+=`<rect x="${padX-1}" y="${padT-4}" width="${gridW+2}" height="4" fill="#C8A96E"/>`; }
     else { s+=`<text x="${padX-8}" y="${padT+fy*0.7}" fill="#C8A96E" font-size="11" font-family="Space Grotesk" text-anchor="end">${baseFret}fr</text>`; }
-    // grid: strings (vertical) & frets (horizontal)
     for(let st=0;st<strings;st++){ const x=padX+st*sx;
       s+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT+gridH}" stroke="#3a3a30" stroke-width="1"/>`; }
     for(let f=0;f<=frets;f++){ const y=padT+f*fy;
       s+=`<line x1="${padX}" y1="${y}" x2="${padX+gridW}" y2="${y}" stroke="#3a3a30" stroke-width="1"/>`; }
-    // string index mapping: pos[0]=string1(high E) -> rightmost. We draw string6 left..string1 right.
-    const stX = idx0 => padX + (5-idx0)*sx; // idx0: 0=string1 -> right
-    // top markers (X / O)
-    for(let i=0;i<6;i++){ const p=c.pos[i]; const x=stX(i);
+    const stX = idx0 => padX + (5-idx0)*sx;
+    for(let i=0;i<6;i++){ const p=v.pos[i]; const x=stX(i);
       if(p.f<0) s+=`<text x="${x}" y="${padT-9}" text-anchor="middle" font-size="11" fill="#8A8A80" font-family="Space Grotesk">×</text>`;
       else if(p.f===0) s+=`<circle cx="${x}" cy="${padT-12}" r="4.2" fill="none" stroke="#8A8A80" stroke-width="1.3"/>`;
     }
-    // barre
-    if(c.barre){
-      const bF=c.barre.fret-baseFret+1;
+    if(v.barre){
+      const bF=v.barre.fret-baseFret+1;
       const y=padT+(bF-0.5)*fy;
-      const xa=stX(c.barre.fromString-1), xb=stX(c.barre.toString-1);
+      const xa=stX(v.barre.fromString-1), xb=stX(v.barre.toString-1);
       const x1=Math.min(xa,xb), x2=Math.max(xa,xb);
       s+=`<rect x="${x1-7}" y="${y-7}" width="${x2-x1+14}" height="14" rx="7" fill="#C8A96E"/>`;
     }
-    // finger dots
-    for(let i=0;i<6;i++){ const p=c.pos[i]; if(p.f<=0) continue;
-      // skip if covered by barre at same fret w/ no distinct finger
+    for(let i=0;i<6;i++){ const p=v.pos[i]; if(p.f<=0) continue;
       const rel=p.f-baseFret+1; const x=stX(i), y=padT+(rel-0.5)*fy;
-      const onBarre = c.barre && p.f===c.barre.fret && p.fin===c.barre.finger;
+      const onBarre = v.barre && p.f===v.barre.fret && p.fin===v.barre.finger;
       if(onBarre) continue;
       s+=`<circle cx="${x}" cy="${y}" r="7.5" fill="#C8A96E"/>`;
       if(p.fin) s+=`<text x="${x}" y="${y+3.4}" text-anchor="middle" font-size="9.5" fill="#0F0F0F" font-family="Space Grotesk" font-weight="700">${p.fin}</text>`;
@@ -1272,7 +1372,7 @@ const Quiz={
         const c=this.pick(CHORDS.filter(x=>["open","barre","ext"].includes(x.cat)));
         const others=this.shuffle(CHORDS.filter(x=>x.n!==c.n)).slice(0,3).map(x=>x.n);
         return this.mc("Chord apa yang ditunjukkan diagram ini?",c.n,others,
-          `Diagram menampilkan posisi jari untuk chord ${c.n}.`, `<div class="q-diagram">${ChordDict.diagram(c)}</div>`);
+          `Diagram menampilkan posisi jari untuk chord ${c.n}.`, `<div class="q-diagram">${ChordDict.diagram(c.voicings[0])}</div>`);
       },
       scale:()=>{
         const opts=[
