@@ -62,6 +62,15 @@ button{font-family:inherit;cursor:pointer;color:inherit}
 input,select{font-family:inherit;color:inherit}
 ::selection{background:var(--accent);color:#0F0F0F}
 
+/* Hide scrollbars for a cleaner aesthetic while keeping scroll functional.
+   Firefox uses scrollbar-width; WebKit/Blink use the pseudo-element. */
+html{scrollbar-width:none}
+html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
+.sidebar{scrollbar-width:none}
+.sidebar::-webkit-scrollbar{width:0;display:none}
+.fb-wrap{scrollbar-width:none}
+.fb-wrap::-webkit-scrollbar{height:0;display:none}
+
 /* ============================================================
    LAYOUT SHELL
    ============================================================ */
@@ -244,6 +253,25 @@ input,select{font-family:inherit;color:inherit}
 .btn.big{padding:13px 22px;font-size:15px;width:100%;margin-top:8px}
 
 /* ============================================================
+   VIEW: TUNER
+   ============================================================ */
+.tuner-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.tuner-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.tuner-card-head h3{font-size:17px}
+.tuner-gauge{display:flex;flex-direction:column;align-items:center;margin-bottom:18px}
+#gaugeSvg{width:100%;max-width:280px}
+.tuner-readout{text-align:center;margin-top:-12px}
+.tuner-note{font-family:var(--font-display);font-weight:700;font-size:46px;line-height:1}
+.tuner-cents{font-size:14px;color:var(--text-dim);font-variant-numeric:tabular-nums;margin-top:4px}
+.ref-strings{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:14px}
+.ref-string{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:12px 4px;display:flex;flex-direction:column;align-items:center;gap:3px;transition:.12s}
+.ref-string:hover{border-color:var(--accent)}
+.ref-string.ring{border-color:var(--interactive);background:var(--surface-2)}
+.ref-num{font-size:10px;color:var(--text-dim)}
+.ref-label{font-family:var(--font-display);font-weight:700;font-size:22px;color:var(--accent)}
+.ref-name{font-size:10px;color:var(--text-dim)}
+
+/* ============================================================
    VIEW: KUIS
    ============================================================ */
 .quiz-cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
@@ -274,6 +302,7 @@ input,select{font-family:inherit;color:inherit}
 @media (max-width:768px){
   .metro{grid-template-columns:1fr;gap:18px}
   .fb-readout{margin-left:0}
+  .tuner-grid{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -315,6 +344,7 @@ input,select{font-family:inherit;color:inherit}
     <section class="view" id="view-fretboard" data-view="fretboard"></section>
     <section class="view" id="view-chord"    data-view="chord"></section>
     <section class="view" id="view-metronom" data-view="metronom"></section>
+    <section class="view" id="view-tuner"    data-view="tuner"></section>
     <section class="view" id="view-kuis"     data-view="kuis"></section>
   </main>
 </div>
@@ -355,7 +385,8 @@ const SCALES = {
 /* ============================================================
    MODULE: DATA — lesson tracks (4 × 5 levels), Bahasa Indonesia
    ============================================================ */
-const DIFF = ["Pemula","Dasar","Menengah","Lanjutan","Mahir"];
+const DIFF = ["Pemula","Dasar","Menengah","Lanjutan","Mahir","Penerapan"];
+const diffLabel = i => DIFF[i] || "Lanjutan+";
 
 const TRACKS = [
   {
@@ -366,6 +397,7 @@ const TRACKS = [
       {t:"Transisi Chord Cepat", d:"Gunakan 'common finger' — jari yang tetap di tempat saat berpindah chord (mis. C→Am, jari 1 tetap di senar 2 fret 1) untuk mengurangi gerakan.", tips:["Identifikasi jari bersama (pivot finger) antar pasangan chord.","Latih satu transisi 1 menit penuh sebelum lanjut."]},
       {t:"Chord Sus & Add9", d:"Chord Dsus2, Asus4, Cadd9 menambah warna tanpa mengubah fungsi harmoni. Bagus untuk menghias progresi I–V–vi–IV.", tips:["Dsus2 = lepas jari penekan senar 1 fret 2 dari chord D.","Cadd9 mudah dijangkau dari G — banyak jari posisi serupa."]},
       {t:"Dynamics & Palm Mute", d:"Kontrol dinamika (keras-lembut) dan palm mute (telapak tangan kanan menyentuh senar dekat bridge) memberi tekstur perkusif pada strumming.", tips:["Geser telapak tangan menjauh dari bridge untuk membuka nada bertahap.","Variasikan kekuatan strum untuk membentuk frasa musik."]},
+      {t:"Mengulik Lagu Tanpa Chord", d:"Keterampilan puncak: memainkan lagu hanya dengan telinga, tanpa mencari chord di internet. Mayoritas lagu pop Indonesia memakai progresi diatonik yang berulang — begitu telinga mengenali pola, Anda bisa langsung mengulik. Tentukan dulu nada dasar (mainkan bass vokal hingga ketemu nada 'rumah'/tonika), lalu coba famili chord-nya: I, IV, V, dan vi. Empat chord ini menutup sebagian besar lagu.", tips:["Cari nada dasar: nyanyikan nada terakhir lagu — itu hampir selalu tonika (chord I).","Pola tersering: I–V–vi–IV (mis. di C: C–G–Am–F) dan vi–IV–I–V. Coba dua pola ini lebih dulu.","Dengarkan pergerakan bass; lompatan ke bawah 4 nada biasanya I→V, naik biasanya I→IV.","Jika satu chord terdengar 'sedih' di tengah lagu riang, itu kemungkinan vi (minor relatif).","Gunakan capo untuk menyamakan nada dengan vokal Anda tanpa mengubah bentuk chord."]},
     ]
   },
   {
@@ -405,8 +437,10 @@ const TRACKS = [
    pos: per string 1..6 -> {f:fret(0=open,-1=mute), fin:finger 1-4 or 0}
    barre: optional {fromString, toString, fret, finger}
    ============================================================ */
+/* Each chord's note content is verified note-by-note against music theory.
+   pos is string 1..6 (high E first). All voicings below passed the audit. */
 const CHORDS = [
-  // OPEN
+  // ---- OPEN (mayor & minor) ----
   {n:"E",     cat:"open",  pos:[{f:0},{f:0},{f:1,fin:1},{f:2,fin:3},{f:2,fin:2},{f:0}]},
   {n:"A",     cat:"open",  pos:[{f:0},{f:2,fin:3},{f:2,fin:2},{f:2,fin:1},{f:0},{f:-1}]},
   {n:"D",     cat:"open",  pos:[{f:2,fin:2},{f:3,fin:3},{f:2,fin:1},{f:0},{f:-1},{f:-1}]},
@@ -415,24 +449,48 @@ const CHORDS = [
   {n:"Em",    cat:"open",  pos:[{f:0},{f:0},{f:0},{f:2,fin:3},{f:2,fin:2},{f:0}]},
   {n:"Am",    cat:"open",  pos:[{f:0},{f:1,fin:1},{f:2,fin:3},{f:2,fin:2},{f:0},{f:-1}]},
   {n:"Dm",    cat:"open",  pos:[{f:1,fin:1},{f:3,fin:3},{f:2,fin:2},{f:0},{f:-1},{f:-1}]},
-  // BARRE
-  {n:"F",     cat:"barre", pos:[{f:1},{f:1},{f:2,fin:2},{f:3,fin:4},{f:3,fin:3},{f:1}], barre:{fromString:1,toString:6,fret:1,finger:1}},
-  {n:"Bm",    cat:"barre", pos:[{f:2},{f:3,fin:2},{f:4,fin:4},{f:4,fin:3},{f:2},{f:-1}], barre:{fromString:1,toString:5,fret:2,finger:1}},
-  // POWER
+  // ---- BARRE (moveable mayor/minor shapes) ----
+  {n:"F",          cat:"barre", pos:[{f:1},{f:1},{f:2,fin:2},{f:3,fin:4},{f:3,fin:3},{f:1}], barre:{fromString:1,toString:6,fret:1,finger:1}, _note:"Bentuk E digeser"},
+  {n:"F#",         cat:"barre", pos:[{f:2},{f:2},{f:3,fin:2},{f:4,fin:4},{f:4,fin:3},{f:2}], barre:{fromString:1,toString:6,fret:2,finger:1}, _note:"Bentuk E, fret 2"},
+  {n:"G (barre)",  cat:"barre", pos:[{f:3},{f:3},{f:4,fin:2},{f:5,fin:4},{f:5,fin:3},{f:3}], barre:{fromString:1,toString:6,fret:3,finger:1}, _note:"Bentuk E, fret 3"},
+  {n:"Ab",         cat:"barre", pos:[{f:4},{f:4},{f:5,fin:2},{f:6,fin:4},{f:6,fin:3},{f:4}], barre:{fromString:1,toString:6,fret:4,finger:1}, _note:"Bentuk E, fret 4"},
+  {n:"Bm",         cat:"barre", pos:[{f:2},{f:3,fin:2},{f:4,fin:4},{f:4,fin:3},{f:2},{f:-1}], barre:{fromString:1,toString:5,fret:2,finger:1}, _note:"Bentuk Am, fret 2"},
+  {n:"C (barre)",  cat:"barre", pos:[{f:3},{f:5,fin:2},{f:5,fin:3},{f:5,fin:4},{f:3},{f:-1}], barre:{fromString:1,toString:5,fret:3,finger:1}, _note:"Bentuk A, fret 3"},
+  {n:"C#m",        cat:"barre", pos:[{f:4},{f:5,fin:2},{f:6,fin:4},{f:6,fin:3},{f:4},{f:-1}], barre:{fromString:1,toString:5,fret:4,finger:1}, _note:"Bentuk Am, fret 4"},
+  {n:"Eb",         cat:"barre", pos:[{f:6},{f:8,fin:2},{f:8,fin:3},{f:8,fin:4},{f:6},{f:-1}], barre:{fromString:1,toString:5,fret:6,finger:1}, _note:"Bentuk A, fret 6"},
+  {n:"F#m",        cat:"barre", pos:[{f:2},{f:2},{f:2},{f:4,fin:3},{f:4,fin:4},{f:2}], barre:{fromString:1,toString:6,fret:2,finger:1}, _note:"Bentuk Em, fret 2"},
+  {n:"Bb",         cat:"barre", pos:[{f:1},{f:3,fin:2},{f:3,fin:3},{f:3,fin:4},{f:1},{f:-1}], barre:{fromString:1,toString:5,fret:1,finger:1}, _note:"Bentuk A, fret 1"},
+  // ---- POWER (5th) ----
   {n:"E5",    cat:"power", pos:[{f:-1},{f:-1},{f:-1},{f:2,fin:3},{f:2,fin:2},{f:0}]},
-  {n:"A5",    cat:"power", pos:[{f:-1},{f:-1},{f:-1},{f:2,fin:3},{f:2,fin:2},{f:0}], _bassString:5},
-  {n:"D5",    cat:"power", pos:[{f:-1},{f:-1},{f:2,fin:3},{f:2,fin:2},{f:0},{f:-1}]},
-  // EXTENDED
-  {n:"Cmaj7", cat:"ext",   pos:[{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:3,fin:3},{f:-1}]},
-  {n:"Am7",   cat:"ext",   pos:[{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:0},{f:-1}]},
+  {n:"A5",    cat:"power", pos:[{f:-1},{f:-1},{f:2,fin:3},{f:2,fin:2},{f:0},{f:-1}]},
+  {n:"D5",    cat:"power", pos:[{f:-1},{f:3,fin:4},{f:2,fin:3},{f:0},{f:-1},{f:-1}]},
+  {n:"G5",    cat:"power", pos:[{f:-1},{f:-1},{f:-1},{f:5,fin:3},{f:5,fin:2},{f:3,fin:1}]},
+  {n:"C5",    cat:"power", pos:[{f:-1},{f:-1},{f:5,fin:4},{f:5,fin:3},{f:3,fin:1},{f:-1}]},
+  {n:"F5",    cat:"power", pos:[{f:-1},{f:-1},{f:-1},{f:3,fin:3},{f:3,fin:2},{f:1,fin:1}]},
+  // ---- EXTENDED (7th, maj7, sus, add) ----
+  {n:"A7",    cat:"ext",   pos:[{f:0},{f:2,fin:3},{f:0},{f:2,fin:2},{f:0},{f:-1}]},
+  {n:"E7",    cat:"ext",   pos:[{f:0},{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:0}]},
+  {n:"D7",    cat:"ext",   pos:[{f:2,fin:3},{f:1,fin:1},{f:2,fin:2},{f:0},{f:-1},{f:-1}]},
+  {n:"B7",    cat:"ext",   pos:[{f:2,fin:4},{f:0},{f:2,fin:3},{f:1,fin:1},{f:2,fin:2},{f:-1}]},
+  {n:"C7",    cat:"ext",   pos:[{f:0},{f:1,fin:1},{f:3,fin:4},{f:2,fin:2},{f:3,fin:3},{f:-1}]},
   {n:"G7",    cat:"ext",   pos:[{f:1,fin:1},{f:0},{f:0},{f:0},{f:2,fin:2},{f:3,fin:3}]},
+  {n:"Am7",   cat:"ext",   pos:[{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:0},{f:-1}]},
+  {n:"Dm7",   cat:"ext",   pos:[{f:1,fin:1},{f:1,fin:1},{f:2,fin:2},{f:0},{f:-1},{f:-1}], barre:{fromString:1,toString:2,fret:1,finger:1}},
+  {n:"Em7",   cat:"ext",   pos:[{f:0},{f:0},{f:0},{f:0},{f:2,fin:2},{f:0}]},
+  {n:"Cmaj7", cat:"ext",   pos:[{f:0},{f:0},{f:0},{f:2,fin:2},{f:3,fin:3},{f:-1}]},
+  {n:"Gmaj7", cat:"ext",   pos:[{f:2,fin:3},{f:0},{f:0},{f:0},{f:2,fin:1},{f:3,fin:2}]},
+  {n:"Amaj7", cat:"ext",   pos:[{f:0},{f:2,fin:2},{f:1,fin:1},{f:2,fin:3},{f:0},{f:-1}]},
+  {n:"Dmaj7", cat:"ext",   pos:[{f:2,fin:1},{f:2,fin:1},{f:2,fin:1},{f:0},{f:-1},{f:-1}], barre:{fromString:1,toString:3,fret:2,finger:1}},
+  {n:"Fmaj7", cat:"ext",   pos:[{f:0},{f:1,fin:1},{f:2,fin:3},{f:3,fin:4},{f:-1},{f:-1}]},
   {n:"Dsus2", cat:"ext",   pos:[{f:0},{f:3,fin:3},{f:2,fin:1},{f:0},{f:-1},{f:-1}]},
   {n:"Asus4", cat:"ext",   pos:[{f:0},{f:3,fin:4},{f:2,fin:2},{f:2,fin:1},{f:0},{f:-1}]},
+  {n:"Esus4", cat:"ext",   pos:[{f:0},{f:0},{f:2,fin:2},{f:2,fin:3},{f:2,fin:1},{f:0}]},
   {n:"Cadd9", cat:"ext",   pos:[{f:3,fin:3},{f:3,fin:4},{f:0},{f:2,fin:2},{f:3,fin:1},{f:-1}]},
-  // METAL (drop-D power)
-  {n:"D5 (Drop-D)",  cat:"metal", pos:[{f:-1},{f:-1},{f:-1},{f:0},{f:-1},{f:0}], _dropD:true, _note:"Setem senar 6 ke D"},
-  {n:"E5 (Drop-D)",  cat:"metal", pos:[{f:-1},{f:-1},{f:-1},{f:2,fin:1},{f:-1},{f:2,fin:1}], _dropD:true, _note:"Power chord 1 jari"},
-  {n:"G5 (Drop-D)",  cat:"metal", pos:[{f:-1},{f:-1},{f:-1},{f:5,fin:1},{f:-1},{f:5,fin:1}], _dropD:true, _note:"Geser bentuk ke fret 5"},
+  // ---- METAL (drop-D power) ----
+  {n:"D5 (Drop-D)",  cat:"metal", pos:[{f:-1},{f:-1},{f:-1},{f:0},{f:0},{f:0}], _dropD:true, _note:"Setem senar 6 ke D"},
+  {n:"E5 (Drop-D)",  cat:"metal", pos:[{f:-1},{f:-1},{f:-1},{f:2,fin:1},{f:2,fin:1},{f:2,fin:1}], _dropD:true, _note:"Barre 1 jari, fret 2"},
+  {n:"G5 (Drop-D)",  cat:"metal", pos:[{f:-1},{f:-1},{f:-1},{f:5,fin:1},{f:5,fin:1},{f:5,fin:1}], _dropD:true, _note:"Barre 1 jari, fret 5"},
+  {n:"A5 (Drop-D)",  cat:"metal", pos:[{f:-1},{f:-1},{f:-1},{f:7,fin:1},{f:7,fin:1},{f:7,fin:1}], _dropD:true, _note:"Barre 1 jari, fret 7"},
 ];
 
 // MIDI notes a chord produces (for arpeggio playback), respecting mute/open.
@@ -535,6 +593,7 @@ const ICON={
   chord:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 4v16M10 4v16M14 4v16M19 4v16M5 9h14M5 14h14"/><circle cx="10" cy="9" r="1.4" fill="currentColor"/><circle cx="14" cy="14" r="1.4" fill="currentColor"/></svg>',
   metronom:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 3h6l3 18H6z"/><path d="M12 7v8"/><path d="M16 12l-4-5"/></svg>',
   kuis:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 3.9-2c1.4 1 .9 2.6-.4 3.4-.8.5-1 .9-1 1.6"/><circle cx="12" cy="16.5" r=".6" fill="currentColor" stroke="none"/></svg>',
+  tuner:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v6"/><circle cx="12" cy="13" r="4"/><path d="M12 17v4M8 21h8"/><path d="M12 3l-2 2M12 3l2 2"/></svg>',
   lock:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
   check:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12l4 4 10-11"/></svg>',
 };
@@ -565,6 +624,7 @@ const VIEWS=[
   {id:"fretboard",label:"Fretboard"},
   {id:"chord",label:"Kamus Chord"},
   {id:"metronom",label:"Metronom"},
+  {id:"tuner",label:"Tuner"},
   {id:"kuis",label:"Kuis"},
 ];
 let currentView="pelajaran";
@@ -581,6 +641,7 @@ function go(id){
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.dataset.view===id));
   document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.go===id));
   if(id==="metronom") Metronome.onShow(); else Metronome.stop();
+  if(id!=="tuner") Tuner.stop();
   window.scrollTo(0,0);
 }
 
@@ -607,7 +668,7 @@ const Pelajaran={
   render(){
     const v=document.getElementById("view-pelajaran");
     v.innerHTML = moduleHead("Modul 01 — Jalur Belajar","Pelajaran",
-      "Empat jalur disiplin, masing-masing lima tingkat dari Pemula hingga Mahir. Selesaikan satu tingkat untuk membuka berikutnya.")
+      "Empat jalur disiplin dengan tingkatan dari Pemula hingga penerapan. Selesaikan satu tingkat untuk membuka berikutnya.")
       + `<div id="trackList"></div>`;
     this.renderTracks();
   },
@@ -620,7 +681,7 @@ const Pelajaran={
         const locked = !unlocked;
         return `<div class="lvl ${locked?'locked':''}" >
           <div class="lvl-top">
-            <span class="lvl-badge">${DIFF[i]}</span>
+            <span class="lvl-badge">${diffLabel(i)}</span>
             <span class="lvl-status">${isDone?ICON.check+' Selesai':locked?ICON.lock+' Terkunci':'Terbuka'}</span>
           </div>
           <h4>${lv.t}</h4>
@@ -766,7 +827,7 @@ const ChordDict={
   render(){
     const v=document.getElementById("view-chord");
     v.innerHTML = moduleHead("Modul 03 — Referensi","Kamus Chord",
-      "Lebih dari 20 chord dengan diagram yang dihasilkan secara otomatis. Klik chord untuk membunyikannya sebagai arpeggio.")
+      "Lebih dari 40 chord dengan diagram yang dihasilkan secara otomatis. Klik chord untuk membunyikannya sebagai arpeggio.")
       + `<div class="card chord-controls">
           <input id="chSearch" class="search" type="search" placeholder="Cari chord… (mis. Am7, F, Drop-D)">
           <div class="tag-row" id="chFilters">${CHORD_FILTERS.map(f=>
@@ -960,6 +1021,158 @@ const Metronome={
 </script>
 <script>
 /* ============================================================
+   MODULE: TUNER (mic pitch detection + reference tone)
+   Pitch detection uses autocorrelation on the mic signal — a
+   standard, dependency-free method. Mic requires HTTPS + permission;
+   reference-tone mode always works offline.
+   ============================================================ */
+const Tuner={
+  // Standard tuning targets, low E (6) .. high E (1) for display left->right
+  strings:[
+    {label:"E", name:"E2", midi:40},
+    {label:"A", name:"A2", midi:45},
+    {label:"D", name:"D3", midi:50},
+    {label:"G", name:"G3", midi:55},
+    {label:"B", name:"B3", midi:59},
+    {label:"e", name:"E4", midi:64},
+  ],
+  micActive:false, stream:null, analyser:null, buf:null, raf:null,
+  render(){
+    const v=document.getElementById("view-tuner");
+    v.innerHTML = moduleHead("Modul 06 — Penyetelan","Tuner Gitar",
+      "Dua mode berdampingan: deteksi mikrofon otomatis, dan nada referensi untuk menyetel dengan telinga. Setem standar E A D G B E.")
+      + `<div class="tuner-grid">
+          <div class="card tuner-mic">
+            <div class="tuner-card-head"><h3>Deteksi Mikrofon</h3><span class="pill" id="micState">Nonaktif</span></div>
+            <div class="tuner-gauge" id="gaugeWrap">
+              <svg viewBox="0 0 280 160" id="gaugeSvg">
+                <path d="M30 150 A110 110 0 0 1 250 150" fill="none" stroke="#2A2A24" stroke-width="3"/>
+                <line id="gaugeZero" x1="140" y1="150" x2="140" y2="48" stroke="#2A2A24" stroke-width="1.5" stroke-dasharray="3 3"/>
+                <line id="gaugeNeedle" x1="140" y1="150" x2="140" y2="52" stroke="#4A9EFF" stroke-width="3"/>
+                <circle cx="140" cy="150" r="6" fill="#C8A96E"/>
+              </svg>
+              <div class="tuner-readout">
+                <div class="tuner-note" id="micNote">—</div>
+                <div class="tuner-cents" id="micCents">Mainkan satu senar</div>
+              </div>
+            </div>
+            <button class="btn btn-primary big" id="micBtn">Aktifkan Mikrofon</button>
+            <p class="dim small" id="micHint">Memerlukan izin mikrofon &amp; koneksi HTTPS.</p>
+          </div>
+
+          <div class="card tuner-ref">
+            <div class="tuner-card-head"><h3>Nada Referensi</h3><span class="pill">Tanpa mikrofon</span></div>
+            <p class="dim small">Ketuk senar untuk memainkan nada targetnya, lalu cocokkan dengan telinga.</p>
+            <div class="ref-strings" id="refStrings">
+              ${this.strings.map((s,i)=>`<button class="ref-string" data-ref="${i}">
+                  <span class="ref-num">${6-i}</span>
+                  <span class="ref-label">${s.label}</span>
+                  <span class="ref-name">${s.name}</span></button>`).join("")}
+            </div>
+          </div>
+        </div>`;
+    document.getElementById("micBtn").addEventListener("click",()=>this.toggleMic());
+    document.querySelectorAll("[data-ref]").forEach(b=>b.addEventListener("click",()=>{
+      const s=this.strings[+b.dataset.ref];
+      Audio_.pluck(midiToFreq(s.midi),0,1.6,0.3);
+      b.classList.add("ring"); setTimeout(()=>b.classList.remove("ring"),700);
+    }));
+  },
+  async toggleMic(){
+    if(this.micActive){ this.stop(); return; }
+    const btn=document.getElementById("micBtn");
+    try{
+      this.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,autoGainControl:false,noiseSuppression:false}});
+      const ctx=Audio_.ensure();
+      const src=ctx.createMediaStreamSource(this.stream);
+      this.analyser=ctx.createAnalyser();
+      this.analyser.fftSize=2048;
+      this.buf=new Float32Array(this.analyser.fftSize);
+      src.connect(this.analyser);
+      this.micActive=true;
+      btn.textContent="Matikan Mikrofon";
+      btn.classList.remove("btn-primary"); btn.classList.add("btn-blue");
+      document.getElementById("micState").textContent="Mendengarkan…";
+      this.loop();
+    }catch(e){
+      document.getElementById("micHint").textContent=
+        "Mikrofon tidak tersedia. Pastikan izin diberikan dan halaman dibuka via HTTPS (bukan file lokal).";
+      document.getElementById("micHint").style.color="var(--bad)";
+    }
+  },
+  stop(){
+    this.micActive=false;
+    if(this.raf) cancelAnimationFrame(this.raf); this.raf=null;
+    if(this.stream){ this.stream.getTracks().forEach(t=>t.stop()); this.stream=null; }
+    this.analyser=null;
+    const btn=document.getElementById("micBtn");
+    if(btn){ btn.textContent="Aktifkan Mikrofon"; btn.classList.add("btn-primary"); btn.classList.remove("btn-blue"); }
+    const st=document.getElementById("micState"); if(st) st.textContent="Nonaktif";
+  },
+  loop(){
+    if(!this.micActive||!this.analyser) return;
+    this.analyser.getFloatTimeDomainData(this.buf);
+    const freq=this.detectPitch(this.buf, Audio_.ctx.sampleRate);
+    this.updateGauge(freq);
+    this.raf=requestAnimationFrame(()=>this.loop());
+  },
+  // Autocorrelation pitch detection. Returns frequency in Hz or -1 if no clear pitch.
+  detectPitch(buf, sampleRate){
+    const SIZE=buf.length;
+    // RMS gate: ignore silence
+    let rms=0; for(let i=0;i<SIZE;i++) rms+=buf[i]*buf[i];
+    rms=Math.sqrt(rms/SIZE);
+    if(rms<0.008) return -1;
+    // Trim silent edges
+    let r1=0,r2=SIZE-1,thres=0.2;
+    for(let i=0;i<SIZE/2;i++){ if(Math.abs(buf[i])<thres){r1=i;break;} }
+    for(let i=1;i<SIZE/2;i++){ if(Math.abs(buf[SIZE-i])<thres){r2=SIZE-i;break;} }
+    const b=buf.slice(r1,r2); const N=b.length;
+    const c=new Array(N).fill(0);
+    for(let lag=0;lag<N;lag++){ let s=0; for(let i=0;i<N-lag;i++) s+=b[i]*b[i+lag]; c[lag]=s; }
+    // find first dip then peak after it
+    let d=0; while(d<N-1 && c[d]>c[d+1]) d++;
+    let maxv=-1,maxp=-1;
+    for(let i=d;i<N;i++){ if(c[i]>maxv){ maxv=c[i]; maxp=i; } }
+    if(maxp<=0) return -1;
+    // parabolic interpolation around the peak for sub-sample accuracy
+    let T0=maxp;
+    const x1=c[maxp-1]||0, x2=c[maxp], x3=c[maxp+1]||0;
+    const a=(x1+x3-2*x2)/2, bb=(x3-x1)/2;
+    if(a) T0=maxp-bb/(2*a);
+    const f=sampleRate/T0;
+    return (f>60 && f<1400)?f:-1;  // guitar range guard
+  },
+  updateGauge(freq){
+    const noteEl=document.getElementById("micNote");
+    const centsEl=document.getElementById("micCents");
+    const needle=document.getElementById("gaugeNeedle");
+    if(!noteEl) return;
+    if(freq<0){
+      noteEl.textContent="—"; centsEl.textContent="Mainkan satu senar"; centsEl.style.color="var(--text-dim)";
+      needle.setAttribute("x2",140); needle.setAttribute("y2",52); needle.setAttribute("stroke","#4A9EFF");
+      return;
+    }
+    // nearest MIDI note
+    const midi=Math.round(69+12*Math.log2(freq/440));
+    const targetF=440*Math.pow(2,(midi-69)/12);
+    const cents=Math.round(1200*Math.log2(freq/targetF));
+    noteEl.textContent=midiToName(midi);
+    const inTune=Math.abs(cents)<=5;
+    centsEl.textContent=(cents>0?"+":"")+cents+" cents "+(inTune?"✓ Tepat":(cents>0?"(terlalu tinggi)":"(terlalu rendah)"));
+    centsEl.style.color=inTune?"var(--ok)":(Math.abs(cents)<15?"var(--accent)":"var(--bad)");
+    // needle: map -50..+50 cents to -80..+80 degrees
+    const deg=Math.max(-80,Math.min(80,cents*1.6));
+    const rad=(deg-90)*Math.PI/180;
+    const cx=140,cy=150,len=100;
+    needle.setAttribute("x2",cx+len*Math.cos(rad));
+    needle.setAttribute("y2",cy+len*Math.sin(rad));
+    needle.setAttribute("stroke",inTune?"#6FBF73":(Math.abs(cents)<15?"#C8A96E":"#4A9EFF"));
+  }
+};
+</script>
+<script>
+/* ============================================================
    MODULE: KUIS (quiz engine — 4 categories, generated questions)
    ============================================================ */
 const Quiz={
@@ -1121,6 +1334,7 @@ function boot(){
   Fretboard.render();
   ChordDict.render();
   Metronome.render();
+  Tuner.render();
   Quiz.render();
   renderSidebarProgress();
   go("pelajaran");
