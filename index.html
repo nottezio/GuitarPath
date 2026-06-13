@@ -166,12 +166,12 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
   }
   .brand,.side-progress{display:none}
   .nav{flex-direction:row;margin:0;width:100%;gap:0}
-  .nav-btn{flex:1 1 0;min-width:0;flex-direction:column;gap:3px;font-size:10px;padding:7px 1px;border:none;border-radius:6px;justify-content:center;text-align:center}
-  .nav-btn .ico{width:21px;height:21px}
-  .nav-btn .lbl{font-size:10px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .nav-btn{flex:1 1 0;min-width:0;flex-direction:column;gap:2px;font-size:9px;padding:7px 0;border:none;border-radius:6px;justify-content:center;text-align:center}
+  .nav-btn .ico{width:19px;height:19px}
+  .nav-btn .lbl{font-size:9px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;letter-spacing:-.01em}
   .nav-btn .lbl-full{display:none}
   .nav-btn .lbl-short{display:block}
-  .main{margin-left:0;padding:20px 16px 84px}
+  .main{margin-left:0;padding:20px 16px 82px}
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -281,6 +281,43 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
 .ref-name{font-size:10px;color:var(--text-dim)}
 
 /* ============================================================
+   VIEW: PENGIRING (Iringan)
+   ============================================================ */
+.iringan-controls{margin-bottom:22px}
+.ir-row{display:flex;gap:16px;flex-wrap:wrap}
+.ir-row label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--text-dim)}
+.ir-row select,.ir-row input{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:14px;color:var(--text);min-width:96px}
+.ir-row input[type=number]{width:80px;min-width:0}
+.ir-h{font-size:17px;margin:24px 0 4px}
+.ir-sub{margin-bottom:12px}
+.diatonic-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:8px;margin-bottom:8px}
+.diatonic-chip{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;transition:.12s}
+.diatonic-chip:hover{border-color:var(--accent)}
+.diatonic-chip.hit{background:var(--surface-2);border-color:var(--interactive);transform:scale(.96)}
+.dc-roman{font-family:var(--font-display);font-weight:700;font-size:16px;color:var(--accent)}
+.dc-name{font-size:13px;color:var(--text)}
+.preset-list{display:flex;flex-direction:column;gap:10px}
+.preset-card{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.preset-name{font-weight:600;font-size:14px;margin-bottom:2px}
+.preset-chords{font-size:13px;font-variant-numeric:tabular-nums}
+.preset-play{flex:0 0 auto;white-space:nowrap}
+.custom-builder{display:flex;flex-direction:column;gap:14px}
+.custom-seq{display:flex;flex-wrap:wrap;gap:8px;min-height:40px;align-items:center}
+.seq-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--line);border-radius:20px;padding:6px 12px;font-size:14px;font-weight:500;cursor:pointer;transition:.12s}
+.seq-chip:hover{border-color:var(--bad)}
+.seq-chip b{color:var(--text-dim);font-weight:400;font-size:16px}
+.seq-chip:hover b{color:var(--bad)}
+.custom-actions{display:flex;gap:10px;justify-content:flex-end}
+.now-playing{margin-top:20px}
+.np-card{background:var(--surface);border:1px solid var(--accent);border-radius:var(--radius);padding:22px;text-align:center}
+.np-label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px}
+.np-chord{font-family:var(--font-display);font-weight:700;font-size:48px;line-height:1;color:var(--accent)}
+.np-roman{font-size:16px;color:var(--text-dim);margin-top:2px}
+.np-seq{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0}
+.np-seq span{padding:5px 11px;border-radius:7px;background:var(--bg);font-size:14px;color:var(--text-dim);transition:.12s}
+.np-seq span.on{background:var(--accent);color:#0F0F0F;font-weight:600}
+
+/* ============================================================
    VIEW: KUIS
    ============================================================ */
 .quiz-cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
@@ -354,6 +391,7 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
     <section class="view" id="view-chord"    data-view="chord"></section>
     <section class="view" id="view-metronom" data-view="metronom"></section>
     <section class="view" id="view-tuner"    data-view="tuner"></section>
+    <section class="view" id="view-iringan"  data-view="iringan"></section>
     <section class="view" id="view-kuis"     data-view="kuis"></section>
   </main>
 </div>
@@ -664,6 +702,7 @@ const ICON={
   metronom:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 3h6l3 18H6z"/><path d="M12 7v8"/><path d="M16 12l-4-5"/></svg>',
   kuis:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 3.9-2c1.4 1 .9 2.6-.4 3.4-.8.5-1 .9-1 1.6"/><circle cx="12" cy="16.5" r=".6" fill="currentColor" stroke="none"/></svg>',
   tuner:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v6"/><circle cx="12" cy="13" r="4"/><path d="M12 17v4M8 21h8"/><path d="M12 3l-2 2M12 3l2 2"/></svg>',
+  iringan:'<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
   lock:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
   check:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12l4 4 10-11"/></svg>',
 };
@@ -691,10 +730,11 @@ function fretDividerSVG(){
    ============================================================ */
 const VIEWS=[
   {id:"pelajaran",label:"Pelajaran",short:"Belajar"},
-  {id:"fretboard",label:"Fretboard",short:"Fretboard"},
+  {id:"fretboard",label:"Fretboard",short:"Fret"},
   {id:"chord",label:"Kamus Chord",short:"Chord"},
   {id:"metronom",label:"Metronom",short:"Metro"},
   {id:"tuner",label:"Tuner",short:"Tuner"},
+  {id:"iringan",label:"Pengiring",short:"Iringan"},
   {id:"kuis",label:"Kuis",short:"Kuis"},
 ];
 let currentView="pelajaran";
@@ -712,6 +752,7 @@ function go(id){
   document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("active",b.dataset.go===id));
   if(id==="metronom") Metronome.onShow(); else Metronome.stop();
   if(id!=="tuner") Tuner.stop();
+  if(id!=="iringan") Iringan.stop();
   window.scrollTo(0,0);
 }
 
@@ -1273,6 +1314,203 @@ const Tuner={
 </script>
 <script>
 /* ============================================================
+   MODULE: PENGIRING (diatonic chords + progression player)
+   Pure music theory — no external data. Generates the 7 diatonic
+   chords for any key, plays preset or custom progressions via
+   Web Audio (strum or arpeggio), highlights the active chord.
+   ============================================================ */
+const Iringan={
+  rootPc:0, mode:"major", playStyle:"strum", bpm:90,
+  customRoman:[], building:false,
+  playing:false, timer:null, stepIdx:0, current:null,
+  // quality intervals for voicing any chord
+  QUAL_IV:{ "":[0,4,7], "m":[0,3,7], "dim":[0,3,6] },
+  MAJOR:{iv:[0,2,4,5,7,9,11], qual:["","m","m","","","m","dim"], roman:["I","ii","iii","IV","V","vi","vii°"]},
+  MINOR:{iv:[0,2,3,5,7,8,10], qual:["m","dim","","m","m","",""],   roman:["i","ii°","III","iv","v","VI","VII"]},
+  // preset progressions by degree index (0-based scale degree)
+  PRESETS:{
+    major:[
+      {name:"I–V–vi–IV (pop)", deg:[0,4,5,3]},
+      {name:"vi–IV–I–V", deg:[5,3,0,4]},
+      {name:"I–IV–V (dasar)", deg:[0,3,4]},
+      {name:"I–vi–IV–V (50-an)", deg:[0,5,3,4]},
+      {name:"ii–V–I (jazz)", deg:[1,4,0]},
+    ],
+    minor:[
+      {name:"i–VI–III–VII", deg:[0,5,2,6]},
+      {name:"i–iv–v", deg:[0,3,4]},
+      {name:"i–VII–VI–VII", deg:[0,6,5,6]},
+      {name:"i–iv–VII–III", deg:[0,3,6,2]},
+    ],
+    blues:[
+      {name:"12-Bar Blues", deg:[0,0,0,0,3,3,0,0,4,3,0,4], dom7:true},
+    ],
+  },
+  theory(){ return this.mode==="minor"?this.MINOR:this.MAJOR; },
+  // returns {name, rootPc, qual, roman} for a scale degree
+  chordAt(deg, dom7){
+    const t=this.theory();
+    const pc=(this.rootPc + t.iv[deg])%12;
+    let qual=t.qual[deg];
+    if(dom7 && this.mode==="blues") qual="7";
+    const name=CHROMA[pc]+(qual==="dim"?"dim":qual);
+    return {name, rootPc:pc, qual, roman:t.roman[deg], deg};
+  },
+  // MIDI notes for a chord (root near C3), respecting quality
+  chordMidi(rootPc, qual){
+    let iv=this.QUAL_IV[qual.replace("7","")]||this.QUAL_IV[""];
+    if(qual==="7") iv=[0,4,7,10];
+    const bass=48; // C3
+    const root=bass+(((rootPc-(bass%12))%12)+12)%12;
+    return iv.map(i=>root+i);
+  },
+  render(){
+    const v=document.getElementById("view-iringan");
+    const isBlues=this.mode==="blues";
+    v.innerHTML = moduleHead("Modul 07 — Mengiringi","Pengiring & Progresi",
+      "Pilih nada dasar, lihat famili chord-nya, lalu mainkan progresi populer atau susun sendiri. App akan membunyikan dan menyorot chord yang sedang berjalan — untuk latihan mengulik dan mengiringi.")
+      + `<div class="card iringan-controls">
+          <div class="ir-row">
+            <label>Nada dasar
+              <select id="irRoot">${CHROMA.map((c,i)=>`<option value="${i}" ${i===this.rootPc?'selected':''}>${c}</option>`).join("")}</select>
+            </label>
+            <label>Mode
+              <select id="irMode">
+                <option value="major" ${this.mode==='major'?'selected':''}>Mayor</option>
+                <option value="minor" ${this.mode==='minor'?'selected':''}>Minor</option>
+                <option value="blues" ${this.mode==='blues'?'selected':''}>Blues</option>
+              </select>
+            </label>
+            <label>Gaya
+              <select id="irStyle">
+                <option value="strum" ${this.playStyle==='strum'?'selected':''}>Strum</option>
+                <option value="arpeggio" ${this.playStyle==='arpeggio'?'selected':''}>Arpeggio</option>
+              </select>
+            </label>
+            <label>Tempo
+              <input type="number" id="irBpm" min="40" max="200" value="${this.bpm}">
+            </label>
+          </div>
+        </div>
+
+        <h3 class="ir-h">Famili Chord — ${CHROMA[this.rootPc]} ${({major:'Mayor',minor:'Minor',blues:'Blues'})[this.mode]}</h3>
+        <p class="dim small ir-sub">Chord diatonik kunci ini. Angka Romawi besar = mayor, kecil = minor, ° = diminished. Ketuk untuk membunyikan.</p>
+        <div class="diatonic-row" id="diatonicRow"></div>
+
+        <h3 class="ir-h">Progresi Siap Pakai</h3>
+        <div class="preset-list" id="presetList"></div>
+
+        <h3 class="ir-h">Susun Progresi Sendiri</h3>
+        <p class="dim small ir-sub">Ketuk chord dari famili di atas untuk menambah ke progresi, lalu mainkan.</p>
+        <div class="card custom-builder">
+          <div class="custom-seq" id="customSeq"><span class="dim">Belum ada chord. Ketuk dari famili chord di atas.</span></div>
+          <div class="custom-actions">
+            <button class="btn" id="customClear">Hapus</button>
+            <button class="btn btn-primary" id="customPlay">Mainkan Progresi Saya</button>
+          </div>
+        </div>
+
+        <div class="now-playing" id="nowPlaying"></div>`;
+
+    document.getElementById("irRoot").addEventListener("change",e=>{this.rootPc=+e.target.value;this.stop();this.render();});
+    document.getElementById("irMode").addEventListener("change",e=>{this.mode=e.target.value;this.customRoman=[];this.stop();this.render();});
+    document.getElementById("irStyle").addEventListener("change",e=>{this.playStyle=e.target.value;});
+    document.getElementById("irBpm").addEventListener("input",e=>{this.bpm=Math.max(40,Math.min(200,+e.target.value||90));});
+    this.renderDiatonic();
+    this.renderPresets();
+    this.renderCustom();
+    document.getElementById("customClear").addEventListener("click",()=>{this.customRoman=[];this.renderCustom();});
+    document.getElementById("customPlay").addEventListener("click",()=>{
+      if(!this.customRoman.length) return;
+      this.playProgression(this.customRoman.map(d=>this.chordAt(d.deg,d.dom7)));
+    });
+  },
+  renderDiatonic(){
+    const isBlues=this.mode==="blues";
+    // blues uses I IV V dominant; show full diatonic for major/minor, I/IV/V for blues
+    const degrees = isBlues ? [0,3,4] : [0,1,2,3,4,5,6];
+    const host=document.getElementById("diatonicRow");
+    host.innerHTML=degrees.map(d=>{
+      const ch=this.chordAt(d, isBlues);
+      return `<button class="diatonic-chip" data-deg="${d}">
+        <span class="dc-roman">${ch.roman}</span>
+        <span class="dc-name">${ch.name}</span>
+      </button>`;
+    }).join("");
+    host.querySelectorAll("[data-deg]").forEach(b=>b.addEventListener("click",()=>{
+      const ch=this.chordAt(+b.dataset.deg, isBlues);
+      const midi=this.chordMidi(ch.rootPc,ch.qual);
+      if(this.playStyle==="arpeggio") Audio_.arpeggio(midi,0.11);
+      else midi.forEach(m=>Audio_.playMidi(m,{dur:1.2,gain:0.18}));
+      b.classList.add("hit"); setTimeout(()=>b.classList.remove("hit"),250);
+      // also add to custom builder
+      this.customRoman.push({deg:+b.dataset.deg, dom7:isBlues});
+      this.renderCustom();
+    }));
+  },
+  renderPresets(){
+    const presets=this.PRESETS[this.mode]||[];
+    const host=document.getElementById("presetList");
+    host.innerHTML=presets.map((p,i)=>{
+      const chords=p.deg.map(d=>this.chordAt(d,p.dom7).name);
+      const preview=[...new Set(chords)].join(" – ");
+      return `<div class="preset-card">
+        <div class="preset-info"><div class="preset-name">${p.name}</div><div class="preset-chords dim">${preview}</div></div>
+        <button class="btn btn-primary preset-play" data-preset="${i}">▶ Mainkan</button>
+      </div>`;
+    }).join("");
+    host.querySelectorAll("[data-preset]").forEach(b=>b.addEventListener("click",()=>{
+      const p=presets[+b.dataset.preset];
+      this.playProgression(p.deg.map(d=>this.chordAt(d,p.dom7)));
+    }));
+  },
+  renderCustom(){
+    const host=document.getElementById("customSeq");
+    if(!this.customRoman.length){ host.innerHTML='<span class="dim">Belum ada chord. Ketuk dari famili chord di atas.</span>'; return; }
+    host.innerHTML=this.customRoman.map((d,i)=>{
+      const ch=this.chordAt(d.deg,d.dom7);
+      return `<span class="seq-chip" data-rm="${i}">${ch.name}<b>×</b></span>`;
+    }).join("");
+    host.querySelectorAll("[data-rm]").forEach(b=>b.addEventListener("click",()=>{
+      this.customRoman.splice(+b.dataset.rm,1); this.renderCustom();
+    }));
+  },
+  playProgression(chords){
+    this.stop();
+    if(!chords.length) return;
+    this.playing=true;
+    this.stepIdx=0;
+    const beatMs=60000/this.bpm;
+    const barMs=beatMs*2; // each chord gets 2 beats
+    const np=document.getElementById("nowPlaying");
+    const step=()=>{
+      if(!this.playing) return;
+      const ch=chords[this.stepIdx % chords.length];
+      const midi=this.chordMidi(ch.rootPc,ch.qual);
+      if(this.playStyle==="arpeggio") Audio_.arpeggio(midi, Math.min(0.14, barMs/1000/midi.length));
+      else midi.forEach(m=>Audio_.playMidi(m,{dur:barMs/1000*0.95,gain:0.16}));
+      // visual
+      if(np) np.innerHTML=`<div class="np-card">
+        <div class="np-label">Sedang berbunyi</div>
+        <div class="np-chord">${ch.name}</div>
+        <div class="np-roman">${ch.roman}</div>
+        <div class="np-seq">${chords.map((c,i)=>`<span class="${i===this.stepIdx%chords.length?'on':''}">${c.name}</span>`).join("")}</div>
+        <button class="btn" id="npStop">■ Berhenti</button></div>`;
+      const sb=document.getElementById("npStop"); if(sb) sb.onclick=()=>this.stop();
+      this.stepIdx++;
+      this.timer=setTimeout(step, barMs);
+    };
+    step();
+  },
+  stop(){
+    this.playing=false;
+    if(this.timer){ clearTimeout(this.timer); this.timer=null; }
+    const np=document.getElementById("nowPlaying"); if(np) np.innerHTML="";
+  }
+};
+</script>
+<script>
+/* ============================================================
    MODULE: KUIS (quiz engine — 4 categories, generated questions)
    ============================================================ */
 const Quiz={
@@ -1435,6 +1673,7 @@ function boot(){
   ChordDict.render();
   Metronome.render();
   Tuner.render();
+  Iringan.render();
   Quiz.render();
   renderSidebarProgress();
   go("pelajaran");
