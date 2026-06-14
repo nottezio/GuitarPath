@@ -364,6 +364,8 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
 .se-row .search{flex:1;min-width:160px}
 .se-mode{display:flex;gap:8px}
 .se-help{padding:8px 10px;background:var(--bg);border-radius:8px;line-height:1.5}
+.se-convert{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;background:rgba(74,158,255,.1);border:1px solid var(--interactive);border-radius:9px;font-size:13px}
+.se-convert .btn{flex:0 0 auto}
 .se-help code{background:var(--surface-2);padding:1px 5px;border-radius:4px;font-size:12px}
 .song-textarea{width:100%;min-height:200px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:14px;font-family:var(--font-body);font-size:14px;line-height:1.7;color:var(--text);resize:vertical}
 .song-textarea:focus{outline:none;border-color:var(--interactive)}
@@ -1786,10 +1788,11 @@ const SongLib={
           <input id="seArtist" class="search" placeholder="Artis (opsional)" value="${this.esc(s.artist||"")}">
         </div>
         <div class="se-mode">
-          <button class="chip ${this.editInput==='chordpro'?'on':''}" data-em="chordpro">Tempel ChordPro</button>
-          <button class="chip ${this.editInput==='manual'?'on':''}" data-em="manual">Bantuan Manual</button>
+          <button class="chip ${this.editInput==='chordpro'?'on':''}" data-em="chordpro">Format ChordPro</button>
+          <button class="chip ${this.editInput==='paste'?'on':''}" data-em="paste">Tempel dari Sumber Lain</button>
         </div>
         <div id="seHelp" class="se-help dim small"></div>
+        <div id="seConvert" class="se-convert" style="display:none"></div>
         <textarea id="seBody" class="song-textarea" placeholder="Contoh:&#10;[C]Twinkle twinkle [G]little star&#10;[F]How I [C]wonder [G]what you [C]are">${this.esc(s.body||"")}</textarea>
         <div class="se-actions">
           <button class="btn" id="seCancel">Batal</button>
@@ -1800,11 +1803,26 @@ const SongLib={
     const help=()=>{
       document.getElementById("seHelp").innerHTML = this.editInput==="chordpro"
         ? "Tulis chord dalam kurung siku tepat sebelum suku kata: <b>[C]</b>. Contoh: <code>[Am]Kau yang [F]selalu</code>. Baris kosong = jarak antar bagian."
-        : "Tulis dua baris bergantian: baris chord lalu baris lirik. Sistem akan menyelaraskan. Atau tetap pakai format [C] di mana saja.";
+        : "Salin chord+lirik dari Ultimate Guitar, Chordtela, dll (format <b>chord di atas lirik</b>), lalu tempel apa adanya di bawah. Bila terdeteksi, tombol konversi akan muncul. <i>Hanya tempel materi yang Anda akses secara sah.</i>";
     };
     help();
+    const checkConvert=()=>{
+      const body=document.getElementById("seBody").value;
+      const box=document.getElementById("seConvert");
+      if(this.looksLikeOverLyric(body)){
+        box.style.display="block";
+        box.innerHTML=`<span>Terdeteksi format <b>chord di atas lirik</b>. Ubah ke format app?</span>
+          <button class="btn btn-primary" id="seDoConvert">⚡ Konversi Otomatis</button>`;
+        document.getElementById("seDoConvert").onclick=()=>{
+          const ta=document.getElementById("seBody");
+          ta.value=this.convertOverLyric(ta.value);
+          ta.dispatchEvent(new Event("input"));
+        };
+      } else { box.style.display="none"; box.innerHTML=""; }
+    };
     const live=()=>{ const body=document.getElementById("seBody").value;
-      document.getElementById("sePreview").innerHTML = `<div class="sp-label dim small">Pratinjau:</div>`+this.renderChordPro(body,0); };
+      document.getElementById("sePreview").innerHTML = `<div class="sp-label dim small">Pratinjau:</div>`+this.renderChordPro(body,0);
+      checkConvert(); };
     live();
     document.getElementById("seBody").addEventListener("input",live);
     host.querySelectorAll("[data-em]").forEach(b=>b.onclick=()=>{ this.editInput=b.dataset.em; this.renderEdit(); });
@@ -1933,6 +1951,72 @@ const SongLib={
     };
     reader.readAsText(file);
     e.target.value="";
+  },
+  // ---- Chord-over-lyric importer (UG / Chordtela style) ----
+  _chordTokenRe:/^\(?[A-G][#b]?(m|maj|min|dim|aug|sus|add|M)?\d*(sus\d)?(add\d)?(\/[A-G][#b]?)?\)?$/,
+  isChordToken(t){ return this._chordTokenRe.test(t); },
+  isChordLine(line){
+    const tokens=line.trim().split(/\s+/).filter(Boolean);
+    if(!tokens.length) return false;
+    return tokens.every(t=>this.isChordToken(t));
+  },
+  // Does the pasted text look like chord-over-lyric (not ChordPro)?
+  looksLikeOverLyric(text){
+    if(/\[[A-G]/.test(text)) return false; // already ChordPro
+    const lines=text.replace(/\r/g,"").split("\n");
+    let chordLines=0, pairs=0;
+    for(let i=0;i<lines.length;i++){
+      if(this.isChordLine(lines[i])){
+        chordLines++;
+        const nx=lines[i+1];
+        if(nx!==undefined && nx.trim()!=="" && !this.isChordLine(nx)) pairs++;
+      }
+    }
+    return chordLines>=1 && pairs>=1;
+  },
+  snapToWord(lyric,col){
+    if(col>=lyric.length) return lyric.length;
+    if(col<=0) return 0;
+    if(lyric[col]!==" " && lyric[col-1]!==" "){
+      let c=col; while(c>0 && lyric[c-1]!==" ") c--;
+      return c;
+    }
+    return col;
+  },
+  pairToChordPro(chordLine, lyricLine){
+    const placements=[]; const re=/\S+/g; let m;
+    while((m=re.exec(chordLine))!==null) placements.push({col:m.index, chord:m[0]});
+    const lyric=lyricLine; let out=""; let prev=0;
+    for(const p of placements){
+      let col=this.snapToWord(lyric, Math.min(p.col, lyric.length));
+      if(col<prev) col=prev;
+      out+=lyric.slice(prev,col)+"["+p.chord+"]";
+      prev=col;
+    }
+    return out+lyric.slice(prev);
+  },
+  convertOverLyric(text){
+    const lines=text.replace(/\r/g,"").split("\n");
+    const out=[];
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i];
+      if(/\[[A-G]/.test(line)){ out.push(line); continue; }
+      if(line.trim()===""){ out.push(""); continue; }
+      if(this.isChordLine(line)){
+        const next=lines[i+1];
+        const chordCount=line.trim().split(/\s+/).length;
+        const nextIsLyric = next!==undefined && next.trim()!=="" && !this.isChordLine(next) && !/\[[A-G]/.test(next);
+        const lyricLooksLikeMarker = nextIsLyric && /^\s*\(/.test(next) && chordCount>=2;
+        if(nextIsLyric && !lyricLooksLikeMarker){
+          out.push(this.pairToChordPro(line,next)); i++;
+        } else {
+          out.push(line.trim().split(/\s+/).map(c=>"["+c+"]").join(" "));
+        }
+      } else {
+        out.push(line);
+      }
+    }
+    return out.join("\n");
   },
   esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 };
