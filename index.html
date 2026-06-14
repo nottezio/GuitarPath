@@ -385,6 +385,16 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
 .sv-capo-note{margin-bottom:12px;padding:8px 10px;background:rgba(74,158,255,.08);border-radius:7px}
 .se-narrow{max-width:240px}
 .se-capo{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-dim)}
+.sv-backing{display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.sv-back-play{flex:0 0 auto;width:40px;height:40px;border-radius:50%;background:var(--accent);color:#0F0F0F;border:none;font-size:15px;cursor:pointer}
+.sv-back-play.playing{background:var(--interactive)}
+.sv-back-info{flex:1;min-width:0}
+.sv-back-label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);display:block;margin-bottom:5px}
+.sv-back-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.sv-back-controls select{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:13px;color:var(--text)}
+.sv-back-tempo{display:flex;align-items:center;gap:6px;font-size:13px}
+.sv-t-mini{width:26px;height:26px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);color:var(--text);font-size:14px;cursor:pointer}
+#svBackBpm{font-family:var(--font-display);font-weight:700;min-width:28px;text-align:center;font-variant-numeric:tabular-nums}
 .se-capo input{width:64px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;color:var(--text)}
 /* Floating autoscroll control */
 .sv-fab{position:fixed;right:18px;bottom:24px;z-index:35;display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--accent);border-radius:30px;padding:6px 10px;box-shadow:0 6px 20px rgba(0,0,0,.45)}
@@ -711,6 +721,50 @@ const CHORDS_RAW = [
   {n:"E5 (Drop-D)", cat:"metal", voicings:[{type:"Drop-D", pos:[{f:-1},{f:-1},{f:-1},{f:2,fin:1},{f:2,fin:1},{f:2,fin:1}], dropD:true, note:"Barre 1 jari, fret 2"}]},
   {n:"G5 (Drop-D)", cat:"metal", voicings:[{type:"Drop-D", pos:[{f:-1},{f:-1},{f:-1},{f:5,fin:1},{f:5,fin:1},{f:5,fin:1}], dropD:true, note:"Barre 1 jari, fret 5"}]},
   {n:"A5 (Drop-D)", cat:"metal", voicings:[{type:"Drop-D", pos:[{f:-1},{f:-1},{f:-1},{f:7,fin:1},{f:7,fin:1},{f:7,fin:1}], dropD:true, note:"Barre 1 jari, fret 7"}]},
+  // ===== MORE MINOR (barre) =====
+  {n:"Cm", cat:"barre", voicings:[
+    {type:"Barre", pos:[{f:3},{f:4,fin:2},{f:5,fin:4},{f:5,fin:3},{f:3},{f:-1}], barre:{fromString:1,toString:5,fret:3,finger:1}, note:"Bentuk Am, fret 3"},
+  ]},
+  {n:"Fm", cat:"barre", voicings:[
+    {type:"Barre", pos:[{f:1},{f:1},{f:1},{f:3,fin:3},{f:3,fin:4},{f:1}], barre:{fromString:1,toString:6,fret:1,finger:1}, note:"Bentuk Em, fret 1"},
+  ]},
+  {n:"Gm", cat:"barre", voicings:[
+    {type:"Barre", pos:[{f:3},{f:3},{f:3},{f:5,fin:3},{f:5,fin:4},{f:3}], barre:{fromString:1,toString:6,fret:3,finger:1}, note:"Bentuk Em, fret 3"},
+  ]},
+  // ===== MORE EXTENDED (m7, maj7, 7, sus) =====
+  {n:"Bm7", cat:"ext", voicings:[
+    {type:"Barre", pos:[{f:2},{f:3,fin:2},{f:2},{f:4,fin:3},{f:2},{f:-1}], barre:{fromString:1,toString:5,fret:2,finger:1}, note:"Bentuk Am7, fret 2"},
+  ]},
+  {n:"C#m7", cat:"ext", voicings:[
+    {type:"Barre", pos:[{f:4},{f:5,fin:2},{f:4},{f:6,fin:3},{f:4},{f:-1}], barre:{fromString:1,toString:5,fret:4,finger:1}, note:"Bentuk Am7, fret 4"},
+  ]},
+  {n:"F#m7", cat:"ext", voicings:[
+    {type:"Barre", pos:[{f:2},{f:2,fin:1},{f:2,fin:1},{f:2,fin:1},{f:4,fin:3},{f:2,fin:1}], barre:{fromString:1,toString:6,fret:2,finger:1}, note:"Bentuk Em7, fret 2"},
+  ]},
+  {n:"G#m7", cat:"ext", voicings:[
+    {type:"Barre", pos:[{f:4},{f:7,fin:4},{f:4},{f:6,fin:3},{f:6,fin:2},{f:4}], barre:{fromString:1,toString:6,fret:4,finger:1}, note:"Bentuk Em7, fret 4"},
+  ]},
+  {n:"Emaj7", cat:"ext", voicings:[
+    {type:"Terbuka", pos:[{f:-1},{f:0},{f:1,fin:1},{f:1,fin:2},{f:2,fin:3},{f:0}]},
+  ]},
+  {n:"Bbmaj7", cat:"ext", voicings:[
+    {type:"Barre", pos:[{f:1},{f:3,fin:3},{f:2,fin:2},{f:3,fin:4},{f:1,fin:1},{f:-1}], barre:{fromString:1,toString:5,fret:1,finger:1}, note:"Bentuk A, fret 1"},
+  ]},
+  {n:"F7", cat:"ext", voicings:[
+    {type:"Barre", pos:[{f:1},{f:1},{f:2,fin:2},{f:1},{f:3,fin:3},{f:1}], barre:{fromString:1,toString:6,fret:1,finger:1}, note:"Bentuk E7, fret 1"},
+  ]},
+  {n:"Dsus4", cat:"ext", voicings:[
+    {type:"Terbuka", pos:[{f:3,fin:3},{f:3,fin:4},{f:2,fin:1},{f:0},{f:-1},{f:-1}]},
+  ]},
+  {n:"Gsus4", cat:"ext", voicings:[
+    {type:"Terbuka", pos:[{f:3,fin:3},{f:1,fin:1},{f:0},{f:0},{f:3,fin:4},{f:3,fin:2}]},
+  ]},
+  {n:"Esus2", cat:"ext", voicings:[
+    {type:"Terbuka", pos:[{f:0},{f:0},{f:4,fin:3},{f:4,fin:4},{f:2,fin:1},{f:0}]},
+  ]},
+  {n:"Asus2", cat:"ext", voicings:[
+    {type:"Terbuka", pos:[{f:0},{f:0},{f:2,fin:2},{f:2,fin:1},{f:0},{f:-1}]},
+  ]},
 ];
 
 // Sort chords musically: by root pitch-class (C, C#, D…), then quality rank.
@@ -929,7 +983,7 @@ function go(id){
   if(id!=="tuner") Tuner.stop();
   if(id!=="iringan") Iringan.stop();
   if(id!=="strum" && typeof Strum!=="undefined") Strum.stop();
-  if(id!=="lagu" && typeof SongLib!=="undefined" && SongLib.stopScroll) SongLib.stopScroll();
+  if(id!=="lagu" && typeof SongLib!=="undefined" && SongLib.stopScroll){ SongLib.stopScroll(); SongLib.stopBacking(); }
   window.scrollTo(0,0);
 }
 
@@ -1764,7 +1818,8 @@ function transposeChordToken(tok, semis){
 const SongLib={
   songs:[], activeId:null, transpose:0, mode:"list", // list | view | edit
   scrollSpeed:3, scrolling:false, scrollRAF:null, scrollAccum:0,
-  searchQuery:"", sortMode:"recent", capoShapes:false,
+  searchQuery:"", sortMode:"recent", capoSounding:false,
+  backing:"none", backingBpm:90, backingPlaying:false, backingTimer:null,
   editInput:"chordpro", // chordpro | manual
   load(){
     try{ const r=JSON.parse(localStorage.getItem("guitarpath.songs")); if(Array.isArray(r)) this.songs=r; }catch(e){}
@@ -1934,8 +1989,10 @@ const SongLib={
     const s=this.songs.find(x=>x.id===this.activeId);
     if(!s){ this.mode="list"; return this.routeBody(); }
     const capo=s.capo||0;
-    // effective transpose for display: manual transpose, minus capo when showing capo shapes
-    const dispSemis=this.transpose - (this.capoShapes && capo>0 ? capo : 0);
+    // The chords as typed ARE the shapes fingered WITH the capo on.
+    // Default: show them as-is. Optional toggle: show the actual sounding pitch
+    // (what it really sounds like / how to play WITHOUT a capo) = transpose UP by capo.
+    const dispSemis=this.transpose + (this.capoSounding && capo>0 ? capo : 0);
     const meta=[];
     if(s.key) meta.push(`<span class="sv-badge">Nada dasar: <b>${this.esc(s.key)}</b></span>`);
     if(capo>0) meta.push(`<span class="sv-badge">Capo: <b>fret ${capo}</b></span>`);
@@ -1952,12 +2009,30 @@ const SongLib={
       </div>
       ${meta.length||capo>0?`<div class="sv-meta">
         ${meta.join("")}
-        ${capo>0?`<button class="sv-capo-toggle ${this.capoShapes?'on':''}" id="svCapoToggle">${this.capoShapes?'✓ ':''}Bentuk chord capo</button>`:""}
+        ${capo>0?`<button class="sv-capo-toggle ${this.capoSounding?'on':''}" id="svCapoToggle">${this.capoSounding?'✓ ':''}Nada asli (tanpa capo)</button>`:""}
       </div>`:""}
+      <div class="sv-backing">
+        <button class="sv-back-play" id="svBackPlay" aria-label="Pengiring">${this.backingPlaying?'⏸':'▶'}</button>
+        <div class="sv-back-info">
+          <span class="sv-back-label">Pengiring</span>
+          <div class="sv-back-controls">
+            <select id="svBackType">
+              <option value="none" ${this.backing==='none'?'selected':''}>Mati</option>
+              <option value="click" ${this.backing==='click'?'selected':''}>Klik metronom</option>
+              <option value="drum" ${this.backing==='drum'?'selected':''}>Drum groove</option>
+            </select>
+            <div class="sv-back-tempo">
+              <button class="sv-t-mini" id="svBackSlower">−</button>
+              <span id="svBackBpm">${this.backingBpm}</span><span class="dim small">bpm</span>
+              <button class="sv-t-mini" id="svBackFaster">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="song-view card">
         <h2 class="sv-title">${this.esc(s.title)}</h2>
         <div class="sv-artist dim">${this.esc(s.artist||"")}</div>
-        ${this.capoShapes&&capo>0?`<div class="sv-capo-note dim small">Menampilkan bentuk chord untuk dimainkan dengan capo di fret ${capo}.</div>`:""}
+        ${this.capoSounding&&capo>0?`<div class="sv-capo-note dim small">Menampilkan nada asli (sounding) — chord seolah dimainkan tanpa capo. Matikan untuk kembali ke bentuk chord dengan capo di fret ${capo}.</div>`:(capo>0?`<div class="sv-capo-note dim small">Chord di bawah adalah bentuk yang Anda mainkan dengan capo di fret ${capo}.</div>`:"")}
         <div class="sv-sheet">${this.renderChordPro(s.body, dispSemis)}</div>
       </div>
       <!-- floating autoscroll control -->
@@ -1967,15 +2042,24 @@ const SongLib={
         <button class="sv-fab-speed" id="svFaster" aria-label="Lebih cepat">+</button>
         <span class="sv-fab-spd" id="svSpd">${this.scrollSpeed}</span>
       </div>`;
-    document.getElementById("svBack").onclick=()=>{ this.stopScroll(); this.mode="list"; this.routeBody(); };
-    document.getElementById("svEdit").onclick=()=>{ this.stopScroll(); this.mode="edit"; this.routeBody(); };
+    document.getElementById("svBack").onclick=()=>{ this.stopScroll(); this.stopBacking(); this.mode="list"; this.routeBody(); };
+    document.getElementById("svEdit").onclick=()=>{ this.stopScroll(); this.stopBacking(); this.mode="edit"; this.routeBody(); };
     document.getElementById("svUp").onclick=()=>{ this.transpose=Math.min(11,this.transpose+1); this.routeBody(); };
     document.getElementById("svDown").onclick=()=>{ this.transpose=Math.max(-11,this.transpose-1); this.routeBody(); };
     const ct=document.getElementById("svCapoToggle");
-    if(ct) ct.onclick=()=>{ this.capoShapes=!this.capoShapes; this.routeBody(); };
+    if(ct) ct.onclick=()=>{ this.capoSounding=!this.capoSounding; this.routeBody(); };
     document.getElementById("svScroll").onclick=()=>this.toggleScroll();
     document.getElementById("svSlower").onclick=()=>{ this.scrollSpeed=Math.max(1,this.scrollSpeed-1); document.getElementById("svSpd").textContent=this.scrollSpeed; };
     document.getElementById("svFaster").onclick=()=>{ this.scrollSpeed=Math.min(10,this.scrollSpeed+1); document.getElementById("svSpd").textContent=this.scrollSpeed; };
+    // backing track controls
+    document.getElementById("svBackType").addEventListener("change",e=>{
+      this.backing=e.target.value;
+      if(this.backing==="none") this.stopBacking();
+      else if(this.backingPlaying) this.restartBacking();
+    });
+    document.getElementById("svBackPlay").onclick=()=>this.toggleBacking();
+    document.getElementById("svBackSlower").onclick=()=>{ this.backingBpm=Math.max(40,this.backingBpm-5); document.getElementById("svBackBpm").textContent=this.backingBpm; if(this.backingPlaying) this.restartBacking(); };
+    document.getElementById("svBackFaster").onclick=()=>{ this.backingBpm=Math.min(200,this.backingBpm+5); document.getElementById("svBackBpm").textContent=this.backingBpm; if(this.backingPlaying) this.restartBacking(); };
     // tap a chord: show diagram popup + play
     host.querySelectorAll(".cp-chord").forEach(c=>c.onclick=(e)=>{
       const tok=c.dataset.ch; this.playChordToken(tok);
@@ -2009,6 +2093,33 @@ const SongLib={
     if(this.scrollRAF){ cancelAnimationFrame(this.scrollRAF); this.scrollRAF=null; }
     const btn=document.getElementById("svScroll");
     if(btn){ btn.textContent="▶"; btn.classList.remove("playing"); }
+  },
+  // ---- Backing track (click or drum groove) for playing along ----
+  toggleBacking(){ this.backingPlaying ? this.stopBacking() : this.startBacking(); },
+  startBacking(){
+    if(this.backing==="none"){ this.backing="drum"; const sel=document.getElementById("svBackType"); if(sel) sel.value="drum"; }
+    if(typeof Audio_!=="undefined" && Audio_.ensure) Audio_.ensure();
+    this.backingPlaying=true;
+    const pb=document.getElementById("svBackPlay"); if(pb){ pb.textContent="⏸"; pb.classList.add("playing"); }
+    const beatMs=60000/this.backingBpm;
+    let beat=0;
+    const tick=()=>{
+      if(!this.backingPlaying){ this.backingTimer=null; return; }
+      if(this.backing==="click"){
+        if(typeof Audio_!=="undefined") Audio_.tick(beat%4===0, 0, beat%4===0?880:440);
+      } else if(this.backing==="drum"){
+        if(typeof Iringan!=="undefined" && Iringan.drumHit) Iringan.drumHit(beat%4);
+      }
+      beat++;
+      this.backingTimer=setTimeout(tick, beatMs);
+    };
+    tick();
+  },
+  restartBacking(){ this.stopBacking(); this.startBacking(); },
+  stopBacking(){
+    this.backingPlaying=false;
+    if(this.backingTimer){ clearTimeout(this.backingTimer); this.backingTimer=null; }
+    const pb=document.getElementById("svBackPlay"); if(pb){ pb.textContent="▶"; pb.classList.remove("playing"); }
   },
   // Find a matching voicing in the Kamus Chord library for a token, else build one from theory
   diagramForToken(tok){
