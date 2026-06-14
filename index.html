@@ -642,7 +642,8 @@ const CHORDS_RAW = [
   ]},
   {n:"C",  cat:"open", voicings:[
     {type:"Terbuka", pos:[{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:3,fin:3},{f:-1}]},
-    {type:"Barre",   pos:[{f:8},{f:8},{f:9,fin:2},{f:10,fin:4},{f:10,fin:3},{f:8}], barre:{fromString:1,toString:6,fret:8,finger:1}, note:"Bentuk E, fret 8"},
+    {type:"Bentuk A", pos:[{f:3},{f:5,fin:4},{f:5,fin:3},{f:5,fin:2},{f:3},{f:-1}], barre:{fromString:1,toString:5,fret:3,finger:1}, note:"Bentuk A, fret 3"},
+    {type:"Bentuk E", pos:[{f:8},{f:8},{f:9,fin:2},{f:10,fin:4},{f:10,fin:3},{f:8}], barre:{fromString:1,toString:6,fret:8,finger:1}, note:"Bentuk E, fret 8"},
   ]},
   {n:"D",  cat:"open", voicings:[
     {type:"Terbuka", pos:[{f:2,fin:2},{f:3,fin:3},{f:2,fin:1},{f:0},{f:-1},{f:-1}]},
@@ -657,13 +658,16 @@ const CHORDS_RAW = [
   ]},
   {n:"F",  cat:"barre", voicings:[
     {type:"Barre", pos:[{f:1},{f:1},{f:2,fin:2},{f:3,fin:4},{f:3,fin:3},{f:1}], barre:{fromString:1,toString:6,fret:1,finger:1}, note:"Bentuk E, fret 1"},
+    {type:"Mini", pos:[{f:1},{f:1},{f:2,fin:2},{f:3,fin:3},{f:-1},{f:-1}], barre:{fromString:1,toString:2,fret:1,finger:1}, note:"Versi mudah, 4 senar"},
+    {type:"Bentuk A", pos:[{f:8},{f:10,fin:4},{f:10,fin:3},{f:10,fin:2},{f:8},{f:-1}], barre:{fromString:1,toString:5,fret:8,finger:1}, note:"Bentuk A, fret 8"},
   ]},
   {n:"F#", cat:"barre", voicings:[
     {type:"Barre", pos:[{f:2},{f:2},{f:3,fin:2},{f:4,fin:4},{f:4,fin:3},{f:2}], barre:{fromString:1,toString:6,fret:2,finger:1}, note:"Bentuk E, fret 2"},
   ]},
   {n:"G",  cat:"open", voicings:[
     {type:"Terbuka", pos:[{f:3,fin:4},{f:0},{f:0},{f:0},{f:2,fin:1},{f:3,fin:2}]},
-    {type:"Barre",   pos:[{f:3},{f:3},{f:4,fin:2},{f:5,fin:4},{f:5,fin:3},{f:3}], barre:{fromString:1,toString:6,fret:3,finger:1}, note:"Bentuk E, fret 3"},
+    {type:"4 jari", pos:[{f:3,fin:4},{f:3,fin:3},{f:0},{f:0},{f:2,fin:2},{f:3,fin:1}], note:"Senar B ikut ditekan (fret 3)"},
+    {type:"Bentuk E", pos:[{f:3},{f:3},{f:4,fin:2},{f:5,fin:4},{f:5,fin:3},{f:3}], barre:{fromString:1,toString:6,fret:3,finger:1}, note:"Bentuk E, fret 3"},
   ]},
   {n:"Ab", cat:"barre", voicings:[
     {type:"Barre", pos:[{f:4},{f:4},{f:5,fin:2},{f:6,fin:4},{f:6,fin:3},{f:4}], barre:{fromString:1,toString:6,fret:4,finger:1}, note:"Bentuk E, fret 4"},
@@ -674,7 +678,8 @@ const CHORDS_RAW = [
     {type:"Barre",   pos:[{f:5},{f:5},{f:5},{f:7,fin:3},{f:7,fin:4},{f:5}], barre:{fromString:1,toString:6,fret:5,finger:1}, note:"Bentuk Em, fret 5"},
   ]},
   {n:"Bm", cat:"barre", voicings:[
-    {type:"Barre", pos:[{f:2},{f:3,fin:2},{f:4,fin:4},{f:4,fin:3},{f:2},{f:-1}], barre:{fromString:1,toString:5,fret:2,finger:1}, note:"Bentuk Am, fret 2"},
+    {type:"Bentuk Am", pos:[{f:2},{f:3,fin:2},{f:4,fin:4},{f:4,fin:3},{f:2},{f:-1}], barre:{fromString:1,toString:5,fret:2,finger:1}, note:"Bentuk Am, fret 2"},
+    {type:"Bentuk Em", pos:[{f:7},{f:7},{f:7},{f:9,fin:4},{f:9,fin:3},{f:7}], barre:{fromString:1,toString:6,fret:7,finger:1}, note:"Bentuk Em, fret 7"},
   ]},
   {n:"C#m",cat:"barre", voicings:[
     {type:"Barre", pos:[{f:4},{f:5,fin:2},{f:6,fin:4},{f:6,fin:3},{f:4},{f:-1}], barre:{fromString:1,toString:5,fret:4,finger:1}, note:"Bentuk Am, fret 4"},
@@ -704,9 +709,15 @@ const CHORDS_RAW = [
   {n:"B7",   cat:"ext", voicings:[{type:"Terbuka", pos:[{f:2,fin:4},{f:0},{f:2,fin:3},{f:1,fin:1},{f:2,fin:2},{f:-1}]}]},
   {n:"C7",   cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:1,fin:1},{f:3,fin:4},{f:2,fin:2},{f:3,fin:3},{f:-1}]}]},
   {n:"G7",   cat:"ext", voicings:[{type:"Terbuka", pos:[{f:1,fin:1},{f:0},{f:0},{f:0},{f:2,fin:2},{f:3,fin:3}]}]},
-  {n:"Am7",  cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:0},{f:-1}]}]},
+  {n:"Am7",  cat:"ext", voicings:[
+    {type:"Terbuka", pos:[{f:0},{f:1,fin:1},{f:0},{f:2,fin:2},{f:0},{f:-1}]},
+    {type:"Bentuk Em7", pos:[{f:5},{f:8,fin:4},{f:5},{f:7,fin:3},{f:7,fin:2},{f:5}], barre:{fromString:1,toString:6,fret:5,finger:1}, note:"Bentuk Em7, fret 5"},
+  ]},
   {n:"Dm7",  cat:"ext", voicings:[{type:"Terbuka", pos:[{f:1,fin:1},{f:1,fin:1},{f:2,fin:2},{f:0},{f:-1},{f:-1}], barre:{fromString:1,toString:2,fret:1,finger:1}}]},
-  {n:"Em7",  cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:0},{f:0},{f:0},{f:2,fin:2},{f:0}]}]},
+  {n:"Em7",  cat:"ext", voicings:[
+    {type:"Terbuka", pos:[{f:0},{f:0},{f:0},{f:0},{f:2,fin:2},{f:0}]},
+    {type:"Bentuk Am7", pos:[{f:7},{f:8,fin:2},{f:7},{f:9,fin:3},{f:7},{f:-1}], barre:{fromString:1,toString:5,fret:7,finger:1}, note:"Bentuk Am7, fret 7"},
+  ]},
   {n:"Cmaj7",cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:0},{f:0},{f:2,fin:2},{f:3,fin:3},{f:-1}]}]},
   {n:"Gmaj7",cat:"ext", voicings:[{type:"Terbuka", pos:[{f:2,fin:3},{f:0},{f:0},{f:0},{f:2,fin:1},{f:3,fin:2}]}]},
   {n:"Amaj7",cat:"ext", voicings:[{type:"Terbuka", pos:[{f:0},{f:2,fin:2},{f:1,fin:1},{f:2,fin:3},{f:0},{f:-1}]}]},
@@ -1243,9 +1254,10 @@ const ChordDict={
   },
   // Programmatic SVG chord diagram for a voicing
   diagram(v){
-    const W=132,H=164,padX=20,padT=30,padB=18;
+    const W=140,H=164,padL=30,padR=16,padT=30,padB=18;
     const strings=6, frets=5;
-    const gridW=W-padX*2, gridH=H-padT-padB;
+    const gridW=W-padL-padR, gridH=H-padT-padB;
+    const padX=padL;
     const sx=gridW/(strings-1), fy=gridH/frets;
     const fretted=v.pos.filter(p=>p.f>0).map(p=>p.f);
     const hasOpen=v.pos.some(p=>p.f===0);
@@ -1254,7 +1266,10 @@ const ChordDict={
     const baseFret = (!hasOpen && minF>=2 && maxF>=5) ? minF : 1;
     let s=`<svg viewBox="0 0 ${W} ${H}" class="chord-svg" aria-hidden="true">`;
     if(baseFret===1){ s+=`<rect x="${padX-1}" y="${padT-4}" width="${gridW+2}" height="4" fill="#C8A96E"/>`; }
-    else { s+=`<text x="${padX-8}" y="${padT+fy*0.7}" fill="#C8A96E" font-size="11" font-family="Space Grotesk" text-anchor="end">${baseFret}fr</text>`; }
+    else {
+      // base-fret label sits in the left margin, vertically centered on the first cell row
+      s+=`<text x="${padX-9}" y="${padT+fy*0.6+4}" fill="#C8A96E" font-size="11" font-family="Space Grotesk" font-weight="700" text-anchor="middle">${baseFret}fr</text>`;
+    }
     for(let st=0;st<strings;st++){ const x=padX+st*sx;
       s+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT+gridH}" stroke="#3a3a30" stroke-width="1"/>`; }
     for(let f=0;f<=frets;f++){ const y=padT+f*fy;
