@@ -373,6 +373,9 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
 .se-preview{margin-top:8px}
 .sp-label{margin-bottom:8px}
 .song-view-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.sv-scrollbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.sv-speed{display:flex;align-items:center;gap:8px}
+.sv-spd{font-family:var(--font-display);font-weight:700;font-size:15px;min-width:20px;text-align:center;font-variant-numeric:tabular-nums}
 .sv-transpose{display:flex;align-items:center;gap:8px}
 .sv-t{padding:6px 12px;font-size:16px;line-height:1}
 .sv-amt{font-family:var(--font-display);font-weight:700;font-size:15px;min-width:26px;text-align:center;font-variant-numeric:tabular-nums}
@@ -906,6 +909,7 @@ function go(id){
   if(id!=="tuner") Tuner.stop();
   if(id!=="iringan") Iringan.stop();
   if(id!=="strum" && typeof Strum!=="undefined") Strum.stop();
+  if(id!=="lagu" && typeof SongLib!=="undefined" && SongLib.stopScroll) SongLib.stopScroll();
   window.scrollTo(0,0);
 }
 
@@ -1739,6 +1743,7 @@ function transposeChordToken(tok, semis){
 
 const SongLib={
   songs:[], activeId:null, transpose:0, mode:"list", // list | view | edit
+  scrollSpeed:3, scrolling:false, scrollRAF:null, scrollAccum:0,
   editInput:"chordpro", // chordpro | manual
   load(){
     try{ const r=JSON.parse(localStorage.getItem("guitarpath.songs")); if(Array.isArray(r)) this.songs=r; }catch(e){}
@@ -1862,21 +1867,62 @@ const SongLib={
         </div>
         <button class="btn" id="svEdit">✎ Edit</button>
       </div>
+      <div class="sv-scrollbar">
+        <button class="btn btn-primary" id="svScroll">▶ Gulir Otomatis</button>
+        <div class="sv-speed">
+          <span class="dim small">Kecepatan</span>
+          <button class="btn sv-t" id="svSlower">−</button>
+          <span class="sv-spd" id="svSpd">${this.scrollSpeed}</span>
+          <button class="btn sv-t" id="svFaster">+</button>
+        </div>
+      </div>
       <div class="song-view card">
         <h2 class="sv-title">${this.esc(s.title)}</h2>
         <div class="sv-artist dim">${this.esc(s.artist||"")}</div>
         <div class="sv-sheet">${this.renderChordPro(s.body, this.transpose)}</div>
       </div>`;
-    document.getElementById("svBack").onclick=()=>{ this.mode="list"; this.routeBody(); };
-    document.getElementById("svEdit").onclick=()=>{ this.mode="edit"; this.routeBody(); };
+    document.getElementById("svBack").onclick=()=>{ this.stopScroll(); this.mode="list"; this.routeBody(); };
+    document.getElementById("svEdit").onclick=()=>{ this.stopScroll(); this.mode="edit"; this.routeBody(); };
     document.getElementById("svUp").onclick=()=>{ this.transpose=Math.min(11,this.transpose+1); this.routeBody(); };
     document.getElementById("svDown").onclick=()=>{ this.transpose=Math.max(-11,this.transpose-1); this.routeBody(); };
+    document.getElementById("svScroll").onclick=()=>this.toggleScroll();
+    document.getElementById("svSlower").onclick=()=>{ this.scrollSpeed=Math.max(1,this.scrollSpeed-1); document.getElementById("svSpd").textContent=this.scrollSpeed; };
+    document.getElementById("svFaster").onclick=()=>{ this.scrollSpeed=Math.min(10,this.scrollSpeed+1); document.getElementById("svSpd").textContent=this.scrollSpeed; };
     // tap a chord: show diagram popup + play
     host.querySelectorAll(".cp-chord").forEach(c=>c.onclick=(e)=>{
       const tok=c.dataset.ch; this.playChordToken(tok);
       c.classList.add("ring"); setTimeout(()=>c.classList.remove("ring"),400);
       this.showChordPopup(tok, c);
     });
+  },
+  toggleScroll(){ this.scrolling ? this.stopScroll() : this.startScroll(); },
+  startScroll(){
+    this.scrolling=true; this.scrollAccum=0;
+    const btn=document.getElementById("svScroll");
+    if(btn){ btn.textContent="⏸ Jeda"; btn.classList.remove("btn-primary"); btn.classList.add("btn-blue"); }
+    let lastT=performance.now();
+    const step=(t)=>{
+      if(!this.scrolling) return;
+      const dt=t-lastT; lastT=t;
+      // speed 1..10 -> ~8..80 px/sec
+      const pxPerSec=this.scrollSpeed*8;
+      this.scrollAccum += pxPerSec*dt/1000;
+      if(this.scrollAccum>=1){
+        const px=Math.floor(this.scrollAccum);
+        window.scrollBy(0,px);
+        this.scrollAccum-=px;
+        // stop at bottom
+        if(window.innerHeight+window.scrollY >= document.body.scrollHeight-2){ this.stopScroll(); return; }
+      }
+      this.scrollRAF=requestAnimationFrame(step);
+    };
+    this.scrollRAF=requestAnimationFrame(step);
+  },
+  stopScroll(){
+    this.scrolling=false;
+    if(this.scrollRAF){ cancelAnimationFrame(this.scrollRAF); this.scrollRAF=null; }
+    const btn=document.getElementById("svScroll");
+    if(btn){ btn.textContent="▶ Gulir Otomatis"; btn.classList.add("btn-primary"); btn.classList.remove("btn-blue"); }
   },
   // Find a matching voicing in the Kamus Chord library for a token, else build one from theory
   diagramForToken(tok){
@@ -1968,8 +2014,9 @@ const SongLib={
         const chordHtml=c.chord?`<span class="cp-chord" data-ch="${this.esc(c.chord)}">${this.esc(c.chord)}</span>`:`<span class="cp-chord">&nbsp;</span>`;
         // preserve leading/trailing spaces in the lyric fragment
         let txt=this.esc(c.text).replace(/ /g,"&nbsp;");
-        // if a chord has no following lyric text, add a small gap so chords don't mash
-        if(c.chord && c.text==="") txt="&nbsp;&nbsp;";
+        // if a chord has no real lyric after it (empty or whitespace only),
+        // give it a clear gap so adjacent trailing chords don't read as one token
+        if(c.chord && c.text.trim()===""){ txt="&nbsp;&nbsp;&nbsp;&nbsp;"; }
         const textHtml=`<span class="cp-text">${txt||"&nbsp;"}</span>`;
         return `<span class="cp-col">${chordHtml}${textHtml}</span>`;
       }).join("");
@@ -2062,12 +2109,20 @@ const SongLib={
     while((m=re.exec(chordLine))!==null) placements.push({col:m.index, chord:m[0]});
     const lyric=lyricLine; let out=""; let prev=0;
     for(const p of placements){
-      let col=this.snapToWord(lyric, Math.min(p.col, lyric.length));
-      if(col<prev) col=prev;
-      out+=lyric.slice(prev,col)+"["+p.chord+"]";
-      prev=col;
+      if(p.col>=lyric.length){
+        // chord sits past the end of the lyric (played without singing) -> keep it
+        // as a spaced trailing chord rather than mashing onto the last word
+        if(prev<lyric.length){ out+=lyric.slice(prev); prev=lyric.length; }
+        out+="  ["+p.chord+"]";
+      } else {
+        let col=this.snapToWord(lyric, Math.min(p.col, lyric.length));
+        if(col<prev) col=prev;
+        out+=lyric.slice(prev,col)+"["+p.chord+"]";
+        prev=col;
+      }
     }
-    return out+lyric.slice(prev);
+    if(prev<lyric.length) out+=lyric.slice(prev);
+    return out;
   },
   convertOverLyric(text){
     const lines=text.replace(/\r/g,"").split("\n");
