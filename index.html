@@ -351,7 +351,10 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
 /* ============================================================
    VIEW: PUSTAKA LAGU
    ============================================================ */
-.lagu-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.lagu-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.lagu-filter{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.lagu-filter .search{flex:1;min-width:160px}
+.lagu-filter select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px;color:var(--text)}
 .song-list{display:flex;flex-direction:column;gap:10px}
 .song-card{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;cursor:pointer;transition:.12s}
 .song-card:hover{border-color:var(--accent)}
@@ -373,9 +376,23 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
 .se-preview{margin-top:8px}
 .sp-label{margin-bottom:8px}
 .song-view-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
-.sv-scrollbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
-.sv-speed{display:flex;align-items:center;gap:8px}
-.sv-spd{font-family:var(--font-display);font-weight:700;font-size:15px;min-width:20px;text-align:center;font-variant-numeric:tabular-nums}
+.sv-meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.sv-badge{font-size:13px;color:var(--text-dim);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:6px 12px}
+.sv-badge b{color:var(--accent);font-weight:600}
+.sv-capo-toggle{font-size:13px;background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:6px 12px;color:var(--text-dim);transition:.12s}
+.sv-capo-toggle:hover{border-color:var(--accent)}
+.sv-capo-toggle.on{background:var(--accent);color:#0F0F0F;border-color:var(--accent);font-weight:600}
+.sv-capo-note{margin-bottom:12px;padding:8px 10px;background:rgba(74,158,255,.08);border-radius:7px}
+.se-narrow{max-width:240px}
+.se-capo{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-dim)}
+.se-capo input{width:64px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;color:var(--text)}
+/* Floating autoscroll control */
+.sv-fab{position:fixed;right:18px;bottom:24px;z-index:35;display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--accent);border-radius:30px;padding:6px 10px;box-shadow:0 6px 20px rgba(0,0,0,.45)}
+.sv-fab-play{width:42px;height:42px;border-radius:50%;background:var(--accent);color:#0F0F0F;border:none;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.sv-fab-play.playing{background:var(--interactive)}
+.sv-fab-speed{width:30px;height:30px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line);color:var(--text);font-size:16px;cursor:pointer}
+.sv-fab-spd{font-family:var(--font-display);font-weight:700;font-size:13px;min-width:16px;text-align:center;color:var(--accent)}
+@media (max-width:768px){ .sv-fab{bottom:78px;right:14px} }
 .sv-transpose{display:flex;align-items:center;gap:8px}
 .sv-t{padding:6px 12px;font-size:16px;line-height:1}
 .sv-amt{font-family:var(--font-display);font-weight:700;font-size:15px;min-width:26px;text-align:center;font-variant-numeric:tabular-nums}
@@ -383,18 +400,21 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
 .sv-artist{font-size:14px;margin-bottom:18px}
 .sv-sheet{font-size:15px}
 /* ChordPro rendering */
-.cp-line{display:flex;flex-wrap:wrap;align-items:flex-end;margin-bottom:1px;row-gap:0}
-.cp-col{display:inline-flex;flex-direction:column;white-space:pre}
-.cp-chord{font-family:var(--font-display);font-weight:700;font-size:13px;color:var(--accent);height:17px;cursor:pointer;border-radius:4px;transition:.12s}
+.cp-line{display:flex;flex-wrap:wrap;align-items:flex-end;margin-bottom:3px;row-gap:2px}
+.cp-col{display:inline-flex;flex-direction:column;white-space:pre;align-items:flex-start}
+.cp-chord{font-family:var(--font-display);font-weight:700;font-size:12px;color:var(--accent);cursor:pointer;transition:.12s}
+.cp-box{display:inline-block;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;margin-bottom:2px;line-height:1.4}
+.cp-box:hover{border-color:var(--accent)}
 .cp-chord:hover{color:var(--interactive)}
-.cp-chord.ring{background:var(--surface-2)}
-.cp-text{font-size:15px;color:var(--text);line-height:1.3}
-.cp-blank{height:10px}
-.cp-section{font-family:var(--font-display);font-weight:600;font-size:13px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin:12px 0 3px}
-.cp-chordrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px}
-.cp-chip{background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:3px 9px;height:auto;font-size:13px}
-.cp-chip:hover{border-color:var(--accent)}
+.cp-chord.ring{background:var(--accent);color:#0F0F0F}
+.cp-chord-empty{height:21px;display:inline-block}
+.cp-text{font-size:15px;color:var(--text);line-height:1.35}
+.cp-blank{height:9px}
+.cp-section{font-family:var(--font-display);font-weight:600;font-size:13px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin:12px 0 4px}
+.cp-chordrow{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-bottom:5px}
 .cp-anno{font-size:12px;color:var(--text-dim);font-style:italic}
+.cp-tab{margin:8px 0;overflow-x:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.cp-tab pre{margin:0;font-family:'JetBrains Mono','Courier New',monospace;font-size:12.5px;line-height:1.5;color:var(--text);white-space:pre}
 .chord-popup{position:absolute;z-index:60;background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;box-shadow:0 8px 28px rgba(0,0,0,.5);width:160px;text-align:center}
 .cpop-name{font-family:var(--font-display);font-weight:700;font-size:18px;color:var(--accent);margin-bottom:6px}
 .cpop-dia{display:flex;justify-content:center}
@@ -1744,6 +1764,7 @@ function transposeChordToken(tok, semis){
 const SongLib={
   songs:[], activeId:null, transpose:0, mode:"list", // list | view | edit
   scrollSpeed:3, scrolling:false, scrollRAF:null, scrollAccum:0,
+  searchQuery:"", sortMode:"recent", capoShapes:false,
   editInput:"chordpro", // chordpro | manual
   load(){
     try{ const r=JSON.parse(localStorage.getItem("guitarpath.songs")); if(Array.isArray(r)) this.songs=r; }catch(e){}
@@ -1766,14 +1787,23 @@ const SongLib={
   },
   renderList(){
     const host=document.getElementById("laguBody");
-    const cards = this.songs.length ? this.songs.map(s=>`
+    const q=(this.searchQuery||"").toLowerCase().trim();
+    const sort=this.sortMode||"recent";
+    let list=this.songs.slice();
+    if(q) list=list.filter(s=>(s.title||"").toLowerCase().includes(q) || (s.artist||"").toLowerCase().includes(q));
+    if(sort==="title") list.sort((a,b)=>(a.title||"").localeCompare(b.title||""));
+    else if(sort==="artist") list.sort((a,b)=>(a.artist||"").localeCompare(b.artist||""));
+    else list.sort((a,b)=>(b.created||0)-(a.created||0)); // recent
+    const cards = list.length ? list.map(s=>`
       <div class="song-card" data-open="${s.id}">
         <div class="song-card-main">
           <div class="song-title">${this.esc(s.title)}</div>
-          <div class="song-artist dim">${this.esc(s.artist||"—")}</div>
+          <div class="song-artist dim">${this.esc(s.artist||"—")}${s.key?` · ${this.esc(s.key)}`:""}${s.capo?` · Capo ${s.capo}`:""}</div>
         </div>
         <button class="song-del" data-del="${s.id}" aria-label="Hapus">✕</button>
-      </div>`).join("") : `<p class="dim" style="padding:18px 0">Belum ada lagu. Tambah lagu pertama Anda.</p>`;
+      </div>`).join("")
+      : (this.songs.length ? `<p class="dim" style="padding:18px 0">Tidak ada lagu yang cocok dengan "${this.esc(q)}".</p>`
+                           : `<p class="dim" style="padding:18px 0">Belum ada lagu. Tambah lagu pertama Anda.</p>`);
     host.innerHTML=`
       <div class="lagu-toolbar">
         <button class="btn btn-primary" id="songNew">+ Tambah Lagu</button>
@@ -1781,17 +1811,56 @@ const SongLib={
         <button class="btn" id="songImport">⬆ Impor</button>
         <input type="file" id="songFile" accept="application/json" style="display:none">
       </div>
+      ${this.songs.length?`<div class="lagu-filter">
+        <input id="songSearch" class="search" type="search" placeholder="Cari judul atau artis…" value="${this.esc(this.searchQuery||"")}">
+        <select id="songSort">
+          <option value="recent" ${sort==='recent'?'selected':''}>Terbaru</option>
+          <option value="title" ${sort==='title'?'selected':''}>Judul A–Z</option>
+          <option value="artist" ${sort==='artist'?'selected':''}>Artis A–Z</option>
+        </select>
+      </div>`:""}
       <div class="song-list">${cards}</div>`;
     document.getElementById("songNew").onclick=()=>{ this.activeId=null; this.mode="edit"; this.routeBody(); };
     document.getElementById("songExport").onclick=()=>this.exportBackup();
     document.getElementById("songImport").onclick=()=>document.getElementById("songFile").click();
     document.getElementById("songFile").onchange=e=>this.importBackup(e);
+    const se=document.getElementById("songSearch");
+    if(se) se.addEventListener("input",e=>{ this.searchQuery=e.target.value; this.renderListInPlace(); });
+    const so=document.getElementById("songSort");
+    if(so) so.addEventListener("change",e=>{ this.sortMode=e.target.value; this.renderList(); });
     host.querySelectorAll("[data-open]").forEach(b=>b.onclick=e=>{
       if(e.target.closest("[data-del]")) return;
       this.activeId=b.dataset.open; this.transpose=0; this.mode="view"; this.routeBody();
     });
     host.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
       if(confirm("Hapus lagu ini?")){ this.songs=this.songs.filter(s=>s.id!==b.dataset.del); this.save(); this.routeBody(); }
+    });
+  },
+  // re-render only the list portion to keep search input focused
+  renderListInPlace(){
+    const q=(this.searchQuery||"").toLowerCase().trim();
+    const sort=this.sortMode||"recent";
+    let list=this.songs.slice();
+    if(q) list=list.filter(s=>(s.title||"").toLowerCase().includes(q) || (s.artist||"").toLowerCase().includes(q));
+    if(sort==="title") list.sort((a,b)=>(a.title||"").localeCompare(b.title||""));
+    else if(sort==="artist") list.sort((a,b)=>(a.artist||"").localeCompare(b.artist||""));
+    else list.sort((a,b)=>(b.created||0)-(a.created||0));
+    const listEl=document.querySelector(".song-list");
+    if(!listEl) return;
+    listEl.innerHTML = list.length ? list.map(s=>`
+      <div class="song-card" data-open="${s.id}">
+        <div class="song-card-main">
+          <div class="song-title">${this.esc(s.title)}</div>
+          <div class="song-artist dim">${this.esc(s.artist||"—")}${s.key?` · ${this.esc(s.key)}`:""}${s.capo?` · Capo ${s.capo}`:""}</div>
+        </div>
+        <button class="song-del" data-del="${s.id}" aria-label="Hapus">✕</button>
+      </div>`).join("") : `<p class="dim" style="padding:18px 0">Tidak ada lagu yang cocok.</p>`;
+    listEl.querySelectorAll("[data-open]").forEach(b=>b.onclick=e=>{
+      if(e.target.closest("[data-del]")) return;
+      this.activeId=b.dataset.open; this.transpose=0; this.mode="view"; this.routeBody();
+    });
+    listEl.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
+      if(confirm("Hapus lagu ini?")){ this.songs=this.songs.filter(s=>s.id!==b.dataset.del); this.save(); this.renderListInPlace(); }
     });
   },
   renderEdit(){
@@ -1802,6 +1871,12 @@ const SongLib={
         <div class="se-row">
           <input id="seTitle" class="search" placeholder="Judul lagu" value="${this.esc(s.title)}">
           <input id="seArtist" class="search" placeholder="Artis (opsional)" value="${this.esc(s.artist||"")}">
+        </div>
+        <div class="se-row">
+          <input id="seKey" class="search se-narrow" placeholder="Nada dasar (mis. G, Am)" value="${this.esc(s.key||"")}">
+          <label class="se-capo">Capo fret
+            <input id="seCapo" type="number" min="0" max="11" value="${s.capo||0}">
+          </label>
         </div>
         <div class="se-mode">
           <button class="chip ${this.editInput==='chordpro'?'on':''}" data-em="chordpro">Format ChordPro</button>
@@ -1846,9 +1921,11 @@ const SongLib={
     document.getElementById("seSave").onclick=()=>{
       const title=document.getElementById("seTitle").value.trim()||"Tanpa Judul";
       const artist=document.getElementById("seArtist").value.trim();
+      const key=document.getElementById("seKey").value.trim();
+      const capo=Math.max(0,Math.min(11,parseInt(document.getElementById("seCapo").value)||0));
       const body=document.getElementById("seBody").value;
-      if(this.activeId){ const s=this.songs.find(x=>x.id===this.activeId); s.title=title; s.artist=artist; s.body=body; }
-      else { const id=this.uid(); this.songs.unshift({id,title,artist,body,created:Date.now()}); this.activeId=id; }
+      if(this.activeId){ const s=this.songs.find(x=>x.id===this.activeId); s.title=title; s.artist=artist; s.key=key; s.capo=capo; s.body=body; }
+      else { const id=this.uid(); this.songs.unshift({id,title,artist,key,capo,body,created:Date.now()}); this.activeId=id; }
       this.save(); this.mode="view"; this.routeBody();
     };
   },
@@ -1856,6 +1933,12 @@ const SongLib={
     const host=document.getElementById("laguBody");
     const s=this.songs.find(x=>x.id===this.activeId);
     if(!s){ this.mode="list"; return this.routeBody(); }
+    const capo=s.capo||0;
+    // effective transpose for display: manual transpose, minus capo when showing capo shapes
+    const dispSemis=this.transpose - (this.capoShapes && capo>0 ? capo : 0);
+    const meta=[];
+    if(s.key) meta.push(`<span class="sv-badge">Nada dasar: <b>${this.esc(s.key)}</b></span>`);
+    if(capo>0) meta.push(`<span class="sv-badge">Capo: <b>fret ${capo}</b></span>`);
     host.innerHTML=`
       <div class="song-view-head">
         <button class="btn" id="svBack">← Kembali</button>
@@ -1867,24 +1950,29 @@ const SongLib={
         </div>
         <button class="btn" id="svEdit">✎ Edit</button>
       </div>
-      <div class="sv-scrollbar">
-        <button class="btn btn-primary" id="svScroll">▶ Gulir Otomatis</button>
-        <div class="sv-speed">
-          <span class="dim small">Kecepatan</span>
-          <button class="btn sv-t" id="svSlower">−</button>
-          <span class="sv-spd" id="svSpd">${this.scrollSpeed}</span>
-          <button class="btn sv-t" id="svFaster">+</button>
-        </div>
-      </div>
+      ${meta.length||capo>0?`<div class="sv-meta">
+        ${meta.join("")}
+        ${capo>0?`<button class="sv-capo-toggle ${this.capoShapes?'on':''}" id="svCapoToggle">${this.capoShapes?'✓ ':''}Bentuk chord capo</button>`:""}
+      </div>`:""}
       <div class="song-view card">
         <h2 class="sv-title">${this.esc(s.title)}</h2>
         <div class="sv-artist dim">${this.esc(s.artist||"")}</div>
-        <div class="sv-sheet">${this.renderChordPro(s.body, this.transpose)}</div>
+        ${this.capoShapes&&capo>0?`<div class="sv-capo-note dim small">Menampilkan bentuk chord untuk dimainkan dengan capo di fret ${capo}.</div>`:""}
+        <div class="sv-sheet">${this.renderChordPro(s.body, dispSemis)}</div>
+      </div>
+      <!-- floating autoscroll control -->
+      <div class="sv-fab" id="svFab">
+        <button class="sv-fab-speed" id="svSlower" aria-label="Lebih lambat">−</button>
+        <button class="sv-fab-play" id="svScroll" aria-label="Gulir otomatis">▶</button>
+        <button class="sv-fab-speed" id="svFaster" aria-label="Lebih cepat">+</button>
+        <span class="sv-fab-spd" id="svSpd">${this.scrollSpeed}</span>
       </div>`;
     document.getElementById("svBack").onclick=()=>{ this.stopScroll(); this.mode="list"; this.routeBody(); };
     document.getElementById("svEdit").onclick=()=>{ this.stopScroll(); this.mode="edit"; this.routeBody(); };
     document.getElementById("svUp").onclick=()=>{ this.transpose=Math.min(11,this.transpose+1); this.routeBody(); };
     document.getElementById("svDown").onclick=()=>{ this.transpose=Math.max(-11,this.transpose-1); this.routeBody(); };
+    const ct=document.getElementById("svCapoToggle");
+    if(ct) ct.onclick=()=>{ this.capoShapes=!this.capoShapes; this.routeBody(); };
     document.getElementById("svScroll").onclick=()=>this.toggleScroll();
     document.getElementById("svSlower").onclick=()=>{ this.scrollSpeed=Math.max(1,this.scrollSpeed-1); document.getElementById("svSpd").textContent=this.scrollSpeed; };
     document.getElementById("svFaster").onclick=()=>{ this.scrollSpeed=Math.min(10,this.scrollSpeed+1); document.getElementById("svSpd").textContent=this.scrollSpeed; };
@@ -1899,19 +1987,17 @@ const SongLib={
   startScroll(){
     this.scrolling=true; this.scrollAccum=0;
     const btn=document.getElementById("svScroll");
-    if(btn){ btn.textContent="⏸ Jeda"; btn.classList.remove("btn-primary"); btn.classList.add("btn-blue"); }
+    if(btn){ btn.textContent="⏸"; btn.classList.add("playing"); }
     let lastT=performance.now();
     const step=(t)=>{
       if(!this.scrolling) return;
       const dt=t-lastT; lastT=t;
-      // speed 1..10 -> ~8..80 px/sec
       const pxPerSec=this.scrollSpeed*8;
       this.scrollAccum += pxPerSec*dt/1000;
       if(this.scrollAccum>=1){
         const px=Math.floor(this.scrollAccum);
         window.scrollBy(0,px);
         this.scrollAccum-=px;
-        // stop at bottom
         if(window.innerHeight+window.scrollY >= document.body.scrollHeight-2){ this.stopScroll(); return; }
       }
       this.scrollRAF=requestAnimationFrame(step);
@@ -1922,7 +2008,7 @@ const SongLib={
     this.scrolling=false;
     if(this.scrollRAF){ cancelAnimationFrame(this.scrollRAF); this.scrollRAF=null; }
     const btn=document.getElementById("svScroll");
-    if(btn){ btn.textContent="▶ Gulir Otomatis"; btn.classList.add("btn-primary"); btn.classList.remove("btn-blue"); }
+    if(btn){ btn.textContent="▶"; btn.classList.remove("playing"); }
   },
   // Find a matching voicing in the Kamus Chord library for a token, else build one from theory
   diagramForToken(tok){
@@ -1965,14 +2051,28 @@ const SongLib={
     setTimeout(()=>document.addEventListener("click",outside,true),0);
   },
   // Parse ChordPro [C]text into HTML with chords above lyrics
+  isTabLine(line){ return /^\s*[eEABDGgb]\s*\|/.test(line) && /[-0-9]/.test(line); },
   renderChordPro(body, semis){
     if(!body || !body.trim()) return `<div class="dim">Belum ada isi.</div>`;
     const lines=body.replace(/\r/g,"").split("\n");
-    return lines.map(line=>{
-      if(line.trim()==="") return `<div class="cp-blank"></div>`;
+    const out=[];
+    for(let li=0; li<lines.length; li++){
+      const line=lines[li];
+
+      // ----- TAB block: gather consecutive tab lines and render as monospace -----
+      if(this.isTabLine(line)){
+        const tabLines=[];
+        while(li<lines.length && this.isTabLine(lines[li])){ tabLines.push(lines[li]); li++; }
+        li--; // step back; for-loop will increment
+        const body=tabLines.map(l=>this.esc(l)).join("\n");
+        out.push(`<div class="cp-tab"><pre>${body}</pre></div>`);
+        continue;
+      }
+
+      if(line.trim()===""){ out.push(`<div class="cp-blank"></div>`); continue; }
       // section header {Verse}
       const sec=line.match(/^\s*\{(.+?)\}\s*$/);
-      if(sec) return `<div class="cp-section">${this.esc(sec[1])}</div>`;
+      if(sec){ out.push(`<div class="cp-section">${this.esc(sec[1])}</div>`); continue; }
 
       // Parse into ordered segments of plain-text and [chord]
       const re=/\[([^\]]+)\]/g;
@@ -1989,13 +2089,12 @@ const SongLib={
       const lyricStripped = lyricText.replace(/\b(x\d+|\d+:\d+)\b/gi,"").trim();
       const hasLyric = lyricStripped!=="";
       if(!hasLyric){
-        // Render chords as spaced chips on a single row — no jumbling
         const chips=segs.filter(s=>s.t==="chord")
-          .map(s=>`<span class="cp-chord cp-chip" data-ch="${this.esc(s.v)}">${this.esc(s.v)}</span>`).join("");
-        // include any trailing annotation text (e.g. "x4", "3:30")
+          .map(s=>`<span class="cp-chord cp-box" data-ch="${this.esc(s.v)}">${this.esc(s.v)}</span>`).join("");
         const annoTxt=lyricText.trim();
         const trailing=annoTxt?`<span class="cp-anno">${this.esc(annoTxt)}</span>`:"";
-        return `<div class="cp-chordrow">${chips}${trailing?" "+trailing:""}</div>`;
+        out.push(`<div class="cp-chordrow">${chips}${trailing?" "+trailing:""}</div>`);
+        continue;
       }
 
       // Mixed chord+lyric line: build aligned columns (chord sticks to following text)
@@ -2009,19 +2108,19 @@ const SongLib={
           cols.push({chord:"", text:s.v});
         }
       }
-      if(!cols.length) return `<div class="cp-line"></div>`;
+      if(!cols.length){ out.push(`<div class="cp-line"></div>`); continue; }
       const inner=cols.map(c=>{
-        const chordHtml=c.chord?`<span class="cp-chord" data-ch="${this.esc(c.chord)}">${this.esc(c.chord)}</span>`:`<span class="cp-chord">&nbsp;</span>`;
-        // preserve leading/trailing spaces in the lyric fragment
+        const chordHtml=c.chord
+          ? `<span class="cp-chord cp-box" data-ch="${this.esc(c.chord)}">${this.esc(c.chord)}</span>`
+          : `<span class="cp-chord-empty">&nbsp;</span>`;
         let txt=this.esc(c.text).replace(/ /g,"&nbsp;");
-        // if a chord has no real lyric after it (empty or whitespace only),
-        // give it a clear gap so adjacent trailing chords don't read as one token
-        if(c.chord && c.text.trim()===""){ txt="&nbsp;&nbsp;&nbsp;&nbsp;"; }
+        if(c.chord && c.text.trim()===""){ txt="&nbsp;"; }
         const textHtml=`<span class="cp-text">${txt||"&nbsp;"}</span>`;
         return `<span class="cp-col">${chordHtml}${textHtml}</span>`;
       }).join("");
-      return `<div class="cp-line">${inner}</div>`;
-    }).join("");
+      out.push(`<div class="cp-line">${inner}</div>`);
+    }
+    return out.join("");
   },
   playChordToken(tok){
     // derive root + simple quality, voice it
@@ -2059,7 +2158,7 @@ const SongLib={
         incoming.forEach(s=>{
           if(!s.title) return;
           const id=s.id&&!this.songs.some(x=>x.id===s.id)?s.id:this.uid();
-          this.songs.push({id,title:s.title,artist:s.artist||"",body:s.body||"",created:s.created||Date.now()});
+          this.songs.push({id,title:s.title,artist:s.artist||"",key:s.key||"",capo:s.capo||0,body:s.body||"",created:s.created||Date.now()});
           added++;
         });
         this.save(); this.mode="list"; this.routeBody();
@@ -2143,7 +2242,7 @@ const SongLib={
         const next=lines[i+1];
         const nextIsLyric = next!==undefined && next.trim()!=="" && !this.isChordLine(next)
           && !this.isSectionHeader(next) && !this._chordProBracket.test(next);
-        const lyricMarker = nextIsLyric && /^\s*\(/.test(next);
+        const lyricMarker = nextIsLyric && /^\s*\([^)]*\)\s*$/.test(next.trim());
         if(nextIsLyric && !lyricMarker){
           out.push(this.pairToChordPro(line,next)); i++;
         } else {
