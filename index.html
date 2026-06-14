@@ -388,6 +388,10 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
 .cp-text{font-size:15px;color:var(--text);line-height:1.3}
 .cp-blank{height:10px}
 .cp-section{font-family:var(--font-display);font-weight:600;font-size:13px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin:12px 0 3px}
+.cp-chordrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px}
+.cp-chip{background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:3px 9px;height:auto;font-size:13px}
+.cp-chip:hover{border-color:var(--accent)}
+.cp-anno{font-size:12px;color:var(--text-dim);font-style:italic}
 .chord-popup{position:absolute;z-index:60;background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;box-shadow:0 8px 28px rgba(0,0,0,.5);width:160px;text-align:center}
 .cpop-name{font-family:var(--font-display);font-weight:700;font-size:18px;color:var(--accent);margin-bottom:6px}
 .cpop-dia{display:flex;justify-content:center}
@@ -1920,37 +1924,55 @@ const SongLib={
     const lines=body.replace(/\r/g,"").split("\n");
     return lines.map(line=>{
       if(line.trim()==="") return `<div class="cp-blank"></div>`;
-      // section header like {Verse} or [Verse] standalone or lines wrapped in {}
+      // section header {Verse}
       const sec=line.match(/^\s*\{(.+?)\}\s*$/);
       if(sec) return `<div class="cp-section">${this.esc(sec[1])}</div>`;
-      // split into segments by [chord]
+
+      // Parse into ordered segments of plain-text and [chord]
       const re=/\[([^\]]+)\]/g;
-      let last=0, m, segs=[];
+      let last=0, m; const segs=[];
       while((m=re.exec(line))!==null){
-        const text=line.slice(last,m.index);
-        segs.push({chord:null,text});
-        const ch=transposeChordToken(m[1],semis);
-        segs[segs.length-1] = {chord:null,text}; // keep preceding text
-        segs.push({chord:ch,text:""});
+        if(m.index>last) segs.push({t:"text", v:line.slice(last,m.index)});
+        segs.push({t:"chord", v:transposeChordToken(m[1],semis)});
         last=m.index+m[0].length;
       }
-      segs.push({chord:null,text:line.slice(last)});
-      // build aligned columns: each chord sticks to the text that follows it
-      let html="", pending=null;
-      // We render as inline blocks: [chord over text]
+      if(last<line.length) segs.push({t:"text", v:line.slice(last)});
+
+      // Is this a CHORD-ONLY line? (no lyric except a trailing annotation like x4/3:30)
+      const lyricText = segs.filter(s=>s.t==="text").map(s=>s.v).join("");
+      const lyricStripped = lyricText.replace(/\b(x\d+|\d+:\d+)\b/gi,"").trim();
+      const hasLyric = lyricStripped!=="";
+      if(!hasLyric){
+        // Render chords as spaced chips on a single row — no jumbling
+        const chips=segs.filter(s=>s.t==="chord")
+          .map(s=>`<span class="cp-chord cp-chip" data-ch="${this.esc(s.v)}">${this.esc(s.v)}</span>`).join("");
+        // include any trailing annotation text (e.g. "x4", "3:30")
+        const annoTxt=lyricText.trim();
+        const trailing=annoTxt?`<span class="cp-anno">${this.esc(annoTxt)}</span>`:"";
+        return `<div class="cp-chordrow">${chips}${trailing?" "+trailing:""}</div>`;
+      }
+
+      // Mixed chord+lyric line: build aligned columns (chord sticks to following text)
       const cols=[];
       for(let i=0;i<segs.length;i++){
-        const seg=segs[i];
-        if(seg.chord!==null){
-          // next text seg
-          let txt=""; if(segs[i+1]&&segs[i+1].chord===null){ txt=segs[i+1].text; i++; }
-          cols.push({chord:seg.chord,text:txt});
-        } else if(seg.text){
-          cols.push({chord:"",text:seg.text});
+        const s=segs[i];
+        if(s.t==="chord"){
+          let txt=""; if(segs[i+1] && segs[i+1].t==="text"){ txt=segs[i+1].v; i++; }
+          cols.push({chord:s.v, text:txt});
+        } else if(s.v!==""){
+          cols.push({chord:"", text:s.v});
         }
       }
       if(!cols.length) return `<div class="cp-line"></div>`;
-      const inner=cols.map(c=>`<span class="cp-col"><span class="cp-chord" data-ch="${this.esc(c.chord)}">${this.esc(c.chord)||"&nbsp;"}</span><span class="cp-text">${this.esc(c.text)||"&nbsp;"}</span></span>`).join("");
+      const inner=cols.map(c=>{
+        const chordHtml=c.chord?`<span class="cp-chord" data-ch="${this.esc(c.chord)}">${this.esc(c.chord)}</span>`:`<span class="cp-chord">&nbsp;</span>`;
+        // preserve leading/trailing spaces in the lyric fragment
+        let txt=this.esc(c.text).replace(/ /g,"&nbsp;");
+        // if a chord has no following lyric text, add a small gap so chords don't mash
+        if(c.chord && c.text==="") txt="&nbsp;&nbsp;";
+        const textHtml=`<span class="cp-text">${txt||"&nbsp;"}</span>`;
+        return `<span class="cp-col">${chordHtml}${textHtml}</span>`;
+      }).join("");
       return `<div class="cp-line">${inner}</div>`;
     }).join("");
   },
@@ -2013,7 +2035,7 @@ const SongLib={
     return tokens.every(t=>this.isChordToken(t));
   },
   isSectionHeader(line){
-    return /^\s*\[[^\]]+\]\s*$/.test(line.trim()) && !this._chordProBracket.test(line);
+    return /^\s*\[[^\]]+\]/.test(line.trim()) && !this._chordProBracket.test(line);
   },
   // Does the pasted text look like chord-over-lyric (not already ChordPro)?
   looksLikeOverLyric(text){
@@ -2052,7 +2074,14 @@ const SongLib={
     const out=[];
     for(let i=0;i<lines.length;i++){
       const line=lines[i];
-      if(this.isSectionHeader(line)){ out.push("{"+line.trim().replace(/^\[|\]$/g,"")+"}"); continue; }
+      // Section header, possibly with trailing annotation e.g. "[Solo] 3:30"
+      if(this.isSectionHeader(line)){
+        const inner=line.trim().replace(/^\[([^\]]+)\].*/, (s,h)=>{
+          const annoMatch=line.trim().match(/^\[[^\]]+\]\s*(.+)$/);
+          return annoMatch ? h+" "+annoMatch[1].trim() : h;
+        });
+        out.push("{"+inner+"}"); continue;
+      }
       if(this._chordProBracket.test(line)){ out.push(line); continue; }
       if(line.trim()===""){ out.push(""); continue; }
       if(this.isChordLine(line)){
@@ -2063,7 +2092,12 @@ const SongLib={
         if(nextIsLyric && !lyricMarker){
           out.push(this.pairToChordPro(line,next)); i++;
         } else {
-          out.push(line.trim().split(/\s+/).map(c=>this.isChordToken(c)?"["+c+"]":c).join(" "));
+          // chord-only line: keep chords bracketed, keep trailing annotation (x4, 3:30) as plain text
+          const annoMatch=line.trim().match(/\s+(x\d+|\d+:\d+)\s*$/i);
+          const anno=annoMatch?annoMatch[1]:"";
+          const chordsPart=anno?line.trim().slice(0,line.trim().length-anno.length):line.trim();
+          const bracketed=chordsPart.split(/\s+/).filter(Boolean).map(c=>this.isChordToken(c)?"["+c+"]":c).join(" ");
+          out.push(bracketed+(anno?" "+anno:""));
         }
       } else {
         out.push(line);
