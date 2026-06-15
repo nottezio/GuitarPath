@@ -352,6 +352,7 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
    VIEW: PUSTAKA LAGU
    ============================================================ */
 .lagu-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.sync-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 16px;padding:8px 12px;background:#1A1408;border:1px solid #221A0C;border-radius:10px;min-height:38px}
 .lagu-filter{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
 .lagu-filter .search{flex:1;min-width:160px}
 .lagu-filter select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px;color:var(--text)}
@@ -1839,7 +1840,18 @@ const SongLib={
   load(){
     try{ const r=JSON.parse(localStorage.getItem("guitarpath.songs")); if(Array.isArray(r)) this.songs=r; }catch(e){}
   },
-  save(){ try{ localStorage.setItem("guitarpath.songs",JSON.stringify(this.songs)); }catch(e){} },
+  save(){ try{ localStorage.setItem("guitarpath.songs",JSON.stringify(this.songs)); }catch(e){}
+    if(window.CloudSync && CloudSync.syncLocalChange) CloudSync.syncLocalChange();
+  },
+  // Re-render modul Lagu HANYA jika sedang tampil (dipanggil saat data masuk dari cloud)
+  refreshIfVisible(){
+    const v=document.getElementById("view-lagu");
+    if(!v || v.offsetParent===null) return; // tidak sedang tampil
+    if(this.mode==="view" && this.activeId && !this.songs.find(s=>s.id===this.activeId)){
+      this.mode="list"; // lagu yang dibuka terhapus dari cloud
+    }
+    if(document.getElementById("laguBody")) this.routeBody();
+  },
   uid(){ return "s"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); },
 
   render(){
@@ -1847,8 +1859,10 @@ const SongLib={
     const v=document.getElementById("view-lagu");
     v.innerHTML = moduleHead("Modul 08 — Koleksi","Pustaka Lagu",
       "Simpan lagu favorit Anda dengan chord di atas lirik. Tempel format ChordPro atau ketik manual. Bisa diekspor sebagai cadangan (backup).")
+      + `<div id="syncBar" class="sync-bar"></div>`
       + `<div id="laguBody"></div>`;
     this.routeBody();
+    if(window.CloudSync && CloudSync._renderBar) CloudSync._renderBar();
   },
   routeBody(){
     if(this.mode==="view") return this.renderView();
@@ -1903,7 +1917,7 @@ const SongLib={
       this.activeId=b.dataset.open; this.transpose=0; this.mode="view"; this.routeBody();
     });
     host.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
-      if(confirm("Hapus lagu ini?")){ this.songs=this.songs.filter(s=>s.id!==b.dataset.del); this.save(); this.routeBody(); }
+      if(confirm("Hapus lagu ini?")){ const _id=b.dataset.del; this.songs=this.songs.filter(s=>s.id!==_id); this.save(); if(window.CloudSync&&CloudSync.remove)CloudSync.remove(_id); this.routeBody(); }
     });
   },
   // re-render only the list portion to keep search input focused
@@ -1930,7 +1944,7 @@ const SongLib={
       this.activeId=b.dataset.open; this.transpose=0; this.mode="view"; this.routeBody();
     });
     listEl.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
-      if(confirm("Hapus lagu ini?")){ this.songs=this.songs.filter(s=>s.id!==b.dataset.del); this.save(); this.renderListInPlace(); }
+      if(confirm("Hapus lagu ini?")){ const _id=b.dataset.del; this.songs=this.songs.filter(s=>s.id!==_id); this.save(); if(window.CloudSync&&CloudSync.remove)CloudSync.remove(_id); this.renderListInPlace(); }
     });
   },
   renderEdit(){
@@ -1994,8 +2008,8 @@ const SongLib={
       const key=document.getElementById("seKey").value.trim();
       const capo=Math.max(0,Math.min(11,parseInt(document.getElementById("seCapo").value)||0));
       const body=document.getElementById("seBody").value;
-      if(this.activeId){ const s=this.songs.find(x=>x.id===this.activeId); s.title=title; s.artist=artist; s.key=key; s.capo=capo; s.body=body; }
-      else { const id=this.uid(); this.songs.unshift({id,title,artist,key,capo,body,created:Date.now()}); this.activeId=id; }
+      if(this.activeId){ const s=this.songs.find(x=>x.id===this.activeId); s.title=title; s.artist=artist; s.key=key; s.capo=capo; s.body=body; s.updatedAt=Date.now(); }
+      else { const id=this.uid(); this.songs.unshift({id,title,artist,key,capo,body,created:Date.now(),updatedAt:Date.now()}); this.activeId=id; }
       this.save(); this.mode="view"; this.routeBody();
     };
   },
@@ -2723,5 +2737,259 @@ if("serviceWorker" in navigator && navigator.serviceWorker && typeof navigator.s
   navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{/* file:// will reject; harmless */});
 }
 </script>
+<!-- ============================================================
+     CLOUDSYNC — Firebase sync untuk Pustaka Lagu
+     Sisipkan SELURUH blok ini tepat SEBELUM </body>.
+     Butuh: isi firebaseConfig di bawah (lihat panduan setup).
+     Jika config kosong → app jalan normal TANPA sync (degradasi anggun).
+     ============================================================ -->
+<script type="module">
+// ---- 1. KONFIGURASI (ISI DARI FIREBASE CONSOLE) ----
+const firebaseConfig = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  appId: ""
+  // (storageBucket / messagingSenderId opsional, boleh ditempel juga)
+};
+
+// Kalau belum dikonfigurasi, jangan aktifkan sync sama sekali.
+const SYNC_ENABLED = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
+
+const CloudSync = {
+  ready:false, user:null, db:null, auth:null,
+  unsub:null, applyingRemote:false, fb:null,
+  pendingConflicts:[],
+
+  async init(){
+    if(!SYNC_ENABLED){ this._renderBar(); return; }
+    try{
+      const [{ initializeApp }, authMod, fsMod] = await Promise.all([
+        import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"),
+        import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"),
+        import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"),
+      ]);
+      this.fb = { ...authMod, ...fsMod };
+      const app = initializeApp(firebaseConfig);
+      this.auth = authMod.getAuth(app);
+      // Firestore dengan cache offline (multi-tab aman)
+      this.db = fsMod.initializeFirestore(app, {
+        localCache: fsMod.persistentLocalCache({ tabManager: fsMod.persistentMultipleTabManager() })
+      });
+      this.ready = true;
+
+      // Tangani hasil redirect (Safari iPad sering pakai jalur ini)
+      try{ await authMod.getRedirectResult(this.auth); }catch(e){ console.warn("redirect result:",e.code||e); }
+
+      authMod.onAuthStateChanged(this.auth, async (u)=>{
+        this.user = u;
+        this._renderBar();
+        if(u){ await this._startListening(); }
+        else if(this.unsub){ this.unsub(); this.unsub=null; }
+      });
+    }catch(e){
+      console.error("CloudSync init gagal:", e);
+      this.ready=false; this._renderBar();
+    }
+  },
+
+  async signIn(){
+    if(!this.ready) return;
+    const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = this.fb;
+    const provider = new GoogleAuthProvider();
+    try{
+      await signInWithPopup(this.auth, provider);
+    }catch(e){
+      // Safari iOS / popup diblokir → fallback redirect
+      if(["auth/popup-blocked","auth/cancelled-popup-request","auth/operation-not-supported-in-this-environment"].includes(e.code)){
+        await signInWithRedirect(this.auth, provider);
+      }else{
+        console.error("signIn:", e); alert("Login gagal: "+(e.code||e.message));
+      }
+    }
+  },
+
+  async signOut(){
+    if(!this.ready) return;
+    try{ await this.fb.signOut(this.auth); }catch(e){ console.error(e); }
+  },
+
+  _col(){
+    const { collection } = this.fb;
+    return collection(this.db, "users", this.user.uid, "songs");
+  },
+
+  // ---- LISTENER REAL-TIME ----
+  async _startListening(){
+    if(this.unsub) this.unsub();
+    const { onSnapshot } = this.fb;
+    // Push lokal yang belum ada di cloud SEBELUM mulai dengar (first sync)
+    await this._pushLocalOnFirstSync();
+    this.unsub = onSnapshot(this._col(), (snap)=>{
+      const remote = [];
+      snap.forEach(d=> remote.push(d.data()));
+      this._mergeRemote(remote);
+    }, (err)=> console.error("snapshot:", err));
+  },
+
+  // Saat pertama login di device ini: dorong lagu lokal yang belum ada di cloud
+  async _pushLocalOnFirstSync(){
+    const { getDocs } = this.fb;
+    const snap = await getDocs(this._col());
+    const cloudIds = new Set(); snap.forEach(d=>cloudIds.add(d.id));
+    const localOnly = SongLib.songs.filter(s=> !cloudIds.has(s.id));
+    for(const s of localOnly){ await this.upsert(s); }
+  },
+
+  // ---- MERGE MASUK DARI CLOUD ----
+  _mergeRemote(remote){
+    const localById = new Map(SongLib.songs.map(s=>[s.id,s]));
+    const remoteById = new Map(remote.map(s=>[s.id,s]));
+    const conflicts = [];
+    let changed = false;
+
+    // Remote → lokal
+    for(const r of remote){
+      const l = localById.get(r.id);
+      if(!l){ SongLib.songs.push(r); changed=true; continue; }
+      const lu = l.updatedAt||0, ru = r.updatedAt||0;
+      if(ru===lu) continue;                 // identik
+      if(this._sameContent(l,r)){           // beda timestamp tapi isi sama → samakan diam-diam
+        l.updatedAt = Math.max(lu,ru); changed=true; continue;
+      }
+      // ISI BEDA + timestamp beda → KONFLIK (sesuai pilihan: tanya user)
+      conflicts.push({ id:r.id, local:{...l}, remote:{...r} });
+    }
+    // Lagu yang dihapus di cloud (ada di lokal, hilang di remote, dan pernah disinkron)
+    for(const l of SongLib.songs.slice()){
+      if(!remoteById.has(l.id) && l._synced){
+        SongLib.songs = SongLib.songs.filter(s=>s.id!==l.id); changed=true;
+      }
+    }
+
+    if(changed){
+      this.applyingRemote=true;
+      SongLib.save();
+      this.applyingRemote=false;
+      if(typeof SongLib.refreshIfVisible==="function") SongLib.refreshIfVisible();
+    }
+    if(conflicts.length){ this.pendingConflicts = conflicts; this._showConflictUI(); }
+  },
+
+  _sameContent(a,b){
+    return (a.title||"")===(b.title||"") && (a.artist||"")===(b.artist||"")
+        && (a.key||"")===(b.key||"") && (a.capo||0)===(b.capo||0)
+        && (a.body||"")===(b.body||"");
+  },
+
+  // ---- TULIS KE CLOUD ----
+  async upsert(song){
+    if(!this.ready || !this.user) return;
+    const { doc, setDoc } = this.fb;
+    const clean = {
+      id:song.id, title:song.title||"", artist:song.artist||"",
+      key:song.key||"", capo:song.capo||0, body:song.body||"",
+      created:song.created||Date.now(),
+      updatedAt:song.updatedAt||Date.now()
+    };
+    try{ await setDoc(doc(this._col(), song.id), clean); song._synced=true; }
+    catch(e){ console.error("upsert:", e); }
+  },
+
+  async remove(id){
+    if(!this.ready || !this.user) return;
+    const { doc, deleteDoc } = this.fb;
+    try{ await deleteDoc(doc(this._col(), id)); }catch(e){ console.error("remove:", e); }
+  },
+
+  // Dipanggil SongLib tiap kali songs berubah secara lokal (bukan dari remote)
+  syncLocalChange(){
+    if(this.applyingRemote || !this.ready || !this.user) return;
+    for(const s of SongLib.songs){ this.upsert(s); }
+  },
+
+  // ---- UI KONFLIK ----
+  _showConflictUI(){
+    if(!this.pendingConflicts.length) return;
+    const c = this.pendingConflicts[0];
+    let m = document.getElementById("syncConflict");
+    if(!m){
+      m=document.createElement("div"); m.id="syncConflict";
+      m.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px";
+      document.body.appendChild(m);
+    }
+    const fmt = s=>`<div style="font:12px/1.5 'JetBrains Mono',monospace;color:#8A8A80;white-space:pre-wrap;max-height:160px;overflow:auto;background:#0F0F0F;border:1px solid #221A0C;border-radius:8px;padding:10px;margin-top:6px">${this._esc((s.body||"").slice(0,600))||"(kosong)"}</div>`;
+    m.innerHTML=`
+      <div style="background:#1A1408;border:1px solid #C8A96E;border-radius:14px;max-width:560px;width:100%;padding:20px;color:#E8E8E0;font-family:Inter,sans-serif">
+        <div style="font:600 17px 'Space Grotesk',sans-serif;color:#C8A96E">Konflik Sinkronisasi</div>
+        <p style="color:#8A8A80;font-size:14px;margin:8px 0 14px">Lagu <b style="color:#E8E8E0">${this._esc(c.local.title||c.remote.title)}</b> diedit berbeda di dua perangkat. Pilih versi mana yang dipakai.</p>
+        <div style="display:grid;gap:12px">
+          <div style="border:1px solid #221A0C;border-radius:10px;padding:12px">
+            <div style="font-weight:600">Versi perangkat ini${c.local.updatedAt?` · ${this._time(c.local.updatedAt)}`:""}</div>${fmt(c.local)}
+            <button data-pick="local" style="margin-top:10px;width:100%;background:#4A9EFF;color:#001;border:0;border-radius:8px;padding:9px;font-weight:600;cursor:pointer">Pakai versi ini</button>
+          </div>
+          <div style="border:1px solid #221A0C;border-radius:10px;padding:12px">
+            <div style="font-weight:600">Versi dari cloud${c.remote.updatedAt?` · ${this._time(c.remote.updatedAt)}`:""}</div>${fmt(c.remote)}
+            <button data-pick="remote" style="margin-top:10px;width:100%;background:#C8A96E;color:#001;border:0;border-radius:8px;padding:9px;font-weight:600;cursor:pointer">Pakai versi ini</button>
+          </div>
+        </div>
+        <button data-pick="both" style="margin-top:12px;width:100%;background:transparent;color:#8A8A80;border:1px solid #221A0C;border-radius:8px;padding:8px;cursor:pointer">Simpan keduanya (versi cloud jadi salinan baru)</button>
+        <div style="text-align:center;color:#8A8A80;font-size:12px;margin-top:10px">${this.pendingConflicts.length>1?`+${this.pendingConflicts.length-1} konflik lagi setelah ini`:""}</div>
+      </div>`;
+    m.querySelectorAll("[data-pick]").forEach(b=> b.onclick=()=>this._resolve(c, b.dataset.pick, m));
+  },
+
+  async _resolve(c, pick, modal){
+    if(pick==="local"){
+      const l = SongLib.songs.find(s=>s.id===c.id);
+      if(l){ l.updatedAt=Date.now(); await this.upsert(l); }
+    }else if(pick==="remote"){
+      const i = SongLib.songs.findIndex(s=>s.id===c.id);
+      const r = {...c.remote, _synced:true};
+      if(i>=0) SongLib.songs[i]=r; else SongLib.songs.push(r);
+      SongLib.save();
+    }else if(pick==="both"){
+      const copy = {...c.remote, id:"s"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+                    title:(c.remote.title||"")+" (dari cloud)", updatedAt:Date.now()};
+      SongLib.songs.push(copy); SongLib.save(); await this.upsert(copy);
+      const l = SongLib.songs.find(s=>s.id===c.id);
+      if(l){ l.updatedAt=Date.now(); await this.upsert(l); }
+    }
+    if(typeof SongLib.refreshIfVisible==="function") SongLib.refreshIfVisible();
+    this.pendingConflicts.shift();
+    if(this.pendingConflicts.length){ this._showConflictUI(); }
+    else { modal.remove(); }
+  },
+
+  // ---- BAR STATUS (di header modul Lagu) ----
+  _renderBar(){
+    const bar = document.getElementById("syncBar");
+    if(!bar) return;
+    if(!SYNC_ENABLED){
+      bar.innerHTML = `<span class="dim small">☁ Sync belum dikonfigurasi</span>`;
+      return;
+    }
+    if(!this.ready){
+      bar.innerHTML = `<span class="dim small">☁ Menyiapkan sync…</span>`;
+      return;
+    }
+    if(this.user){
+      bar.innerHTML = `<span class="small" style="color:#6FBF73">☁ Tersinkron · ${this._esc(this.user.email||this.user.displayName||"akun")}</span>
+        <button class="btn" id="syncOut" style="padding:4px 10px;font-size:12px">Keluar</button>`;
+      const o=document.getElementById("syncOut"); if(o) o.onclick=()=>this.signOut();
+    }else{
+      bar.innerHTML = `<button class="btn btn-primary" id="syncIn" style="padding:6px 12px;font-size:13px">☁ Masuk dengan Google untuk sinkron</button>`;
+      const i=document.getElementById("syncIn"); if(i) i.onclick=()=>this.signIn();
+    }
+  },
+
+  _esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); },
+  _time(ms){ try{ return new Date(ms).toLocaleString("id-ID",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } }
+};
+
+window.CloudSync = CloudSync;
+CloudSync.init();
+</script>
+
 </body>
 </html>
