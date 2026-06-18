@@ -1425,6 +1425,15 @@ const Tuner={
     {label:"e", name:"E4", midi:64},
   ],
   micActive:false, stream:null, analyser:null, buf:null, raf:null,
+  // --- smoothing & hold state ---
+  hist:[], centsEMA:null, lastGood:null,
+  // --- tuning konstanta (seimbang) ---
+  RMS_GATE:0.006,     // ambang energi minimum (sedikit di bawah agar decay tertangkap)
+  CLARITY:0.40,       // ambang kejelasan periodisitas (0..1) — tolak noise/transient
+  MEDIAN_N:5,         // jendela median filter (tolak outlier per-frame)
+  EMA_A:0.30,         // faktor smoothing jarum (kecil=halus, besar=cepat)
+  HOLD_MS:2000,       // tahan hasil terakhir setelah nada habis
+  FADE_MS:600,        // durasi pudar di akhir hold
   render(){
     const v=document.getElementById("view-tuner");
     v.innerHTML = moduleHead("Modul 06 — Penyetelan","Tuner Gitar",
@@ -1478,6 +1487,7 @@ const Tuner={
       this.buf=new Float32Array(this.analyser.fftSize);
       src.connect(this.analyser);
       this.micActive=true;
+      this.hist=[]; this.centsEMA=null; this.lastGood=null;
       btn.textContent="Matikan Mikrofon";
       btn.classList.remove("btn-primary"); btn.classList.add("btn-blue");
       document.getElementById("micState").textContent="Mendengarkan…";
@@ -1500,62 +1510,119 @@ const Tuner={
   loop(){
     if(!this.micActive||!this.analyser) return;
     this.analyser.getFloatTimeDomainData(this.buf);
-    const freq=this.detectPitch(this.buf, Audio_.ctx.sampleRate);
-    this.updateGauge(freq);
+    const res=this.detectPitch(this.buf, Audio_.ctx.sampleRate);
+    this.process(res);
     this.raf=requestAnimationFrame(()=>this.loop());
   },
-  // Autocorrelation pitch detection. Returns frequency in Hz or -1 if no clear pitch.
+  median(arr){
+    const a=arr.slice().sort((x,y)=>x-y);
+    const m=a.length>>1;
+    return a.length%2 ? a[m] : (a[m-1]+a[m])/2;
+  },
+  // Pipeline: validasi → median → hitung cents → hold/fade → render
+  process(res){
+    const now=(performance&&performance.now)?performance.now():Date.now();
+    if(res.freq>0 && res.clarity>=this.CLARITY){
+      this.hist.push(res.freq);
+      if(this.hist.length>this.MEDIAN_N) this.hist.shift();
+      const f=this.median(this.hist);                       // tolak outlier per-frame
+      const midi=Math.round(69+12*Math.log2(f/440));
+      const targetF=440*Math.pow(2,(midi-69)/12);
+      const cents=1200*Math.log2(f/targetF);
+      this.lastGood={midi,cents,t:now};
+      this.renderReading(midi,cents,1,false);
+    }else{
+      // Tidak ada nada terdeteksi → TAHAN hasil terakhir, lalu pudar
+      if(this.lastGood){
+        const age=now-this.lastGood.t;
+        if(age<this.HOLD_MS){
+          const fade = age>(this.HOLD_MS-this.FADE_MS) ? (this.HOLD_MS-age)/this.FADE_MS : 1;
+          this.renderReading(this.lastGood.midi,this.lastGood.cents,fade,true);
+        }else{
+          this.lastGood=null; this.hist=[]; this.centsEMA=null;
+          this.renderIdle();
+        }
+      }else{
+        this.renderIdle();
+      }
+    }
+  },
+  // Autocorrelation + koreksi oktaf. Return {freq, clarity}.
   detectPitch(buf, sampleRate){
     const SIZE=buf.length;
-    // RMS gate: ignore silence
     let rms=0; for(let i=0;i<SIZE;i++) rms+=buf[i]*buf[i];
     rms=Math.sqrt(rms/SIZE);
-    if(rms<0.008) return -1;
-    // Trim silent edges
-    let r1=0,r2=SIZE-1,thres=0.2;
-    for(let i=0;i<SIZE/2;i++){ if(Math.abs(buf[i])<thres){r1=i;break;} }
-    for(let i=1;i<SIZE/2;i++){ if(Math.abs(buf[SIZE-i])<thres){r2=SIZE-i;break;} }
-    const b=buf.slice(r1,r2); const N=b.length;
-    const c=new Array(N).fill(0);
-    for(let lag=0;lag<N;lag++){ let s=0; for(let i=0;i<N-lag;i++) s+=b[i]*b[i+lag]; c[lag]=s; }
-    // find first dip then peak after it
-    let d=0; while(d<N-1 && c[d]>c[d+1]) d++;
-    let maxv=-1,maxp=-1;
-    for(let i=d;i<N;i++){ if(c[i]>maxv){ maxv=c[i]; maxp=i; } }
-    if(maxp<=0) return -1;
-    // parabolic interpolation around the peak for sub-sample accuracy
-    let T0=maxp;
-    const x1=c[maxp-1]||0, x2=c[maxp], x3=c[maxp+1]||0;
+    if(rms<this.RMS_GATE) return {freq:-1,clarity:0};
+    let c0=0; for(let i=0;i<SIZE;i++) c0+=buf[i]*buf[i];
+    if(c0<=0) return {freq:-1,clarity:0};
+    const minLag=Math.max(2,Math.floor(sampleRate/1400)); // batas atas 1400Hz
+    const maxLag=Math.min(SIZE-2,Math.floor(sampleRate/60)); // batas bawah 60Hz
+    const corr=new Float32Array(maxLag+1);
+    for(let lag=minLag;lag<=maxLag;lag++){
+      let s=0; for(let i=0;i<SIZE-lag;i++) s+=buf[i]*buf[i+lag];
+      // normalisasi terhadap jumlah suku agar lag besar (nada rendah) tak terhukum
+      corr[lag]=s/(SIZE-lag);
+    }
+    // puncak global sebagai acuan ambang
+    let gmax=0;
+    for(let lag=minLag+1;lag<maxLag;lag++) if(corr[lag]>gmax) gmax=corr[lag];
+    if(gmax<=0) return {freq:-1,clarity:0};
+    const thr=0.86*gmax;
+    // KOREKSI OKTAF: ambil puncak lokal dengan LAG TERKECIL yang ≥ ambang
+    // (= frekuensi fundamental; menghindari salah-oktaf-turun ke 2×periode)
+    let bestLag=-1;
+    for(let lag=minLag+1;lag<maxLag;lag++){
+      if(corr[lag]>corr[lag-1] && corr[lag]>=corr[lag+1] && corr[lag]>=thr){ bestLag=lag; break; }
+    }
+    if(bestLag<0) return {freq:-1,clarity:0};
+    // interpolasi parabolik utk presisi sub-sampel
+    const x1=corr[bestLag-1],x2=corr[bestLag],x3=corr[bestLag+1];
     const a=(x1+x3-2*x2)/2, bb=(x3-x1)/2;
-    if(a) T0=maxp-bb/(2*a);
-    const f=sampleRate/T0;
-    return (f>60 && f<1400)?f:-1;  // guitar range guard
+    let T=bestLag; if(a) T=bestLag-bb/(2*a);
+    const f=sampleRate/T;
+    const clarity=x2/(c0/SIZE); // 0..1: seberapa periodik sinyalnya
+    return (f>60 && f<1400)?{freq:f,clarity}:{freq:-1,clarity:0};
   },
-  updateGauge(freq){
+  renderIdle(){
     const noteEl=document.getElementById("micNote");
     const centsEl=document.getElementById("micCents");
     const needle=document.getElementById("gaugeNeedle");
+    const wrap=document.getElementById("gaugeWrap");
     if(!noteEl) return;
-    if(freq<0){
-      noteEl.textContent="—"; centsEl.textContent="Mainkan satu senar"; centsEl.style.color="var(--text-dim)";
-      needle.setAttribute("x2",140); needle.setAttribute("y2",52); needle.setAttribute("stroke","#4A9EFF");
-      return;
-    }
-    // nearest MIDI note
-    const midi=Math.round(69+12*Math.log2(freq/440));
-    const targetF=440*Math.pow(2,(midi-69)/12);
-    const cents=Math.round(1200*Math.log2(freq/targetF));
+    if(wrap) wrap.style.opacity="1";
+    noteEl.textContent="—"; noteEl.style.opacity="1";
+    centsEl.textContent="Mainkan satu senar"; centsEl.style.color="var(--text-dim)";
+    needle.setAttribute("x2",140); needle.setAttribute("y2",52); needle.setAttribute("stroke","#4A9EFF");
+    this.centsEMA=null;
+  },
+  renderReading(midi,cents,opacity,held){
+    const noteEl=document.getElementById("micNote");
+    const centsEl=document.getElementById("micCents");
+    const needle=document.getElementById("gaugeNeedle");
+    const wrap=document.getElementById("gaugeWrap");
+    if(!noteEl) return;
+    // EMA hanya untuk gerak jarum (visual halus); nama nada dari median (stabil)
+    this.centsEMA = (this.centsEMA==null) ? cents : this.centsEMA + this.EMA_A*(cents-this.centsEMA);
+    const cShow = held ? cents : this.centsEMA;   // saat hold, tampilkan nilai beku
+    const cRound=Math.round(cShow);
+    const inTune=Math.abs(cRound)<=5;
+
     noteEl.textContent=midiToName(midi);
-    const inTune=Math.abs(cents)<=5;
-    centsEl.textContent=(cents>0?"+":"")+cents+" cents "+(inTune?"✓ Tepat":(cents>0?"(terlalu tinggi)":"(terlalu rendah)"));
-    centsEl.style.color=inTune?"var(--ok)":(Math.abs(cents)<15?"var(--accent)":"var(--bad)");
-    // needle: map -50..+50 cents to -80..+80 degrees
-    const deg=Math.max(-80,Math.min(80,cents*1.6));
+    noteEl.style.opacity=opacity;
+    if(wrap) wrap.style.opacity = held ? Math.max(0.35,opacity) : "1";
+
+    let label=(cRound>0?"+":"")+cRound+" cents "+(inTune?"✓ Tepat":(cRound>0?"(terlalu tinggi)":"(terlalu rendah)"));
+    if(held) label+=" · tertahan";
+    centsEl.textContent=label;
+    centsEl.style.color=inTune?"var(--ok)":(Math.abs(cRound)<15?"var(--accent)":"var(--bad)");
+
+    const deg=Math.max(-80,Math.min(80,cShow*1.6));
     const rad=(deg-90)*Math.PI/180;
     const cx=140,cy=150,len=100;
     needle.setAttribute("x2",cx+len*Math.cos(rad));
     needle.setAttribute("y2",cy+len*Math.sin(rad));
-    needle.setAttribute("stroke",inTune?"#6FBF73":(Math.abs(cents)<15?"#C8A96E":"#4A9EFF"));
+    needle.setAttribute("stroke",inTune?"#6FBF73":(Math.abs(cRound)<15?"#C8A96E":"#4A9EFF"));
+    needle.style.opacity=opacity;
   }
 };
 </script>
@@ -2752,7 +2819,6 @@ const firebaseConfig = {
   storageBucket: "guitarpath-cd4e5.firebasestorage.app",
   messagingSenderId: "476629095319",
   appId: "1:476629095319:web:6991212787b31d9a3f2ad2"
-  // (storageBucket / messagingSenderId opsional, boleh ditempel juga)
 };
 
 // Kalau belum dikonfigurasi, jangan aktifkan sync sama sekali.
