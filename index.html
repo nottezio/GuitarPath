@@ -2077,12 +2077,37 @@ function transposeChordToken(tok, semis){
 const SongLib={
   songs:[], activeId:null, transpose:0, mode:"list", // list | view | edit
   scrollSpeed:3, scrolling:false, scrollRAF:null, scrollAccum:0,
+  SPEED_LADDER:[0.25,0.5,1,1.5,2,3,4,6,8,10],  // +opsi lambat (0.25/0.5) di bawah min lama (1)
+  stepSpeed(dir){
+    const L=this.SPEED_LADDER;
+    let i=L.indexOf(this.scrollSpeed);
+    if(i<0){ let best=Infinity; L.forEach((v,k)=>{ const d=Math.abs(v-this.scrollSpeed); if(d<best){best=d;i=k;} }); }
+    i=Math.max(0,Math.min(L.length-1,i+dir));
+    this.scrollSpeed=L[i];
+    return this.scrollSpeed;
+  },
   searchQuery:"", sortMode:"recent", capoSounding:false,
   backing:"none", backingBpm:90, backingPlaying:false, backingTimer:null,
   editInput:"chordpro", // chordpro | manual
   pendingNew:null,      // pre-fill judul/artis saat impor dari pencarian online
+  tomb:{},              // tombstone: {id: waktuHapus} — cegah lagu terhapus muncul lagi saat sync
   load(){
     try{ const r=JSON.parse(localStorage.getItem("guitarpath.songs")); if(Array.isArray(r)) this.songs=r; }catch(e){}
+    try{ const t=JSON.parse(localStorage.getItem("guitarpath.tomb")); if(t && typeof t==="object") this.tomb=t; }catch(e){}
+  },
+  saveTomb(){ try{ localStorage.setItem("guitarpath.tomb",JSON.stringify(this.tomb)); }catch(e){} },
+  // Hapus lagu dengan benar: catat tombstone, hapus lokal, propagasi ke cloud
+  deleteSong(id){
+    this.tomb[id]=Date.now(); this.saveTomb();
+    this.songs=this.songs.filter(s=>s.id!==id); this.save();
+    if(window.CloudSync){ if(CloudSync.remove) CloudSync.remove(id); if(CloudSync.syncTomb) CloudSync.syncTomb(); }
+  },
+  // Keputusan saat lagu remote tak ada di lokal: add / resurrect / delete (dipakai sync)
+  tombDecision(id, remoteUpdatedAt){
+    const ts=this.tomb[id];
+    if(!ts) return "add";
+    if((remoteUpdatedAt||0) > ts) return "resurrect";  // diedit setelah dihapus → bangkitkan
+    return "delete";                                    // tombstone menang
   },
   save(){ try{ localStorage.setItem("guitarpath.songs",JSON.stringify(this.songs)); }catch(e){}
     if(window.CloudSync && CloudSync.syncLocalChange) CloudSync.syncLocalChange();
@@ -2212,7 +2237,7 @@ const SongLib={
       this.activeId=b.dataset.open; this.transpose=0; this.mode="view"; this.routeBody();
     });
     host.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
-      if(confirm("Hapus lagu ini?")){ const _id=b.dataset.del; this.songs=this.songs.filter(s=>s.id!==_id); this.save(); if(window.CloudSync&&CloudSync.remove)CloudSync.remove(_id); this.routeBody(); }
+      if(confirm("Hapus lagu ini?")){ this.deleteSong(b.dataset.del); this.routeBody(); }
     });
   },
   // re-render only the list portion to keep search input focused
@@ -2239,7 +2264,7 @@ const SongLib={
       this.activeId=b.dataset.open; this.transpose=0; this.mode="view"; this.routeBody();
     });
     listEl.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
-      if(confirm("Hapus lagu ini?")){ const _id=b.dataset.del; this.songs=this.songs.filter(s=>s.id!==_id); this.save(); if(window.CloudSync&&CloudSync.remove)CloudSync.remove(_id); this.renderListInPlace(); }
+      if(confirm("Hapus lagu ini?")){ this.deleteSong(b.dataset.del); this.renderListInPlace(); }
     });
   },
   renderEdit(){
@@ -2388,8 +2413,8 @@ const SongLib={
     const ct=document.getElementById("svCapoToggle");
     if(ct) ct.onclick=()=>{ this.capoSounding=!this.capoSounding; this.routeBody(); };
     document.getElementById("svScroll").onclick=()=>this.toggleScroll();
-    document.getElementById("svSlower").onclick=()=>{ this.scrollSpeed=Math.max(1,this.scrollSpeed-1); document.getElementById("svSpd").textContent=this.scrollSpeed; };
-    document.getElementById("svFaster").onclick=()=>{ this.scrollSpeed=Math.min(10,this.scrollSpeed+1); document.getElementById("svSpd").textContent=this.scrollSpeed; };
+    document.getElementById("svSlower").onclick=()=>{ this.stepSpeed(-1); document.getElementById("svSpd").textContent=this.scrollSpeed; };
+    document.getElementById("svFaster").onclick=()=>{ this.stepSpeed(1); document.getElementById("svSpd").textContent=this.scrollSpeed; };
     // backing track controls
     document.getElementById("svBackType").addEventListener("change",e=>{
       this.backing=e.target.value;
@@ -2467,8 +2492,8 @@ const SongLib={
     document.getElementById("stgFontUp").onclick=()=>this.setStageFont(0.15);
     document.getElementById("stgFontDn").onclick=()=>this.setStageFont(-0.15);
     document.getElementById("stgScroll").onclick=()=>this.toggleStageScroll();
-    document.getElementById("stgSlower").onclick=()=>{ this.scrollSpeed=Math.max(1,this.scrollSpeed-1); const e=document.getElementById("stgSpd"); if(e)e.textContent=this.scrollSpeed; };
-    document.getElementById("stgFaster").onclick=()=>{ this.scrollSpeed=Math.min(10,this.scrollSpeed+1); const e=document.getElementById("stgSpd"); if(e)e.textContent=this.scrollSpeed; };
+    document.getElementById("stgSlower").onclick=()=>{ this.stepSpeed(-1); const e=document.getElementById("stgSpd"); if(e)e.textContent=this.scrollSpeed; };
+    document.getElementById("stgFaster").onclick=()=>{ this.stepSpeed(1); const e=document.getElementById("stgSpd"); if(e)e.textContent=this.scrollSpeed; };
     // tap chord di panggung → bunyi (tanpa popup, biar tak ganggu)
     ov.querySelectorAll(".cp-chord").forEach(c=>c.onclick=()=>{ this.playChordToken(c.dataset.ch); c.classList.add("ring"); setTimeout(()=>c.classList.remove("ring"),300); });
     this._acquireWake();
@@ -2723,14 +2748,21 @@ const SongLib={
     }
     return chordLines>=1;
   },
+  _wordChar(ch){ return /[A-Za-z0-9'’\-]/.test(ch); },
   snapToWord(lyric,col){
-    if(col>=lyric.length) return lyric.length;
     if(col<=0) return 0;
-    if(lyric[col]!==" " && lyric[col-1]!==" "){
-      let c=col; while(c>0 && lyric[c-1]!==" ") c--;
+    if(col>=lyric.length) return lyric.length;
+    const ch=lyric[col];
+    if(ch===" ") return col;                              // sudah di celah antar-kata
+    if(this._wordChar(ch)){                               // di dalam kata → snap ke AWAL kata
+      let c=col; while(c>0 && lyric[c-1]!==" " && this._wordChar(lyric[c-1])) c--;
       return c;
     }
-    return col;
+    // tanda baca / akhir kata (mis. koma di "kindness,") → snap MAJU ke awal kata berikutnya
+    let c=col;
+    while(c<lyric.length && lyric[c]!==" ") c++;          // lewati gugus tanda baca
+    while(c<lyric.length && lyric[c]===" ") c++;          // lewati spasi
+    return c;
   },
   pairToChordPro(chordLine, lyricLine){
     const placements=[]; const re=/\S+/g; let m;
@@ -3136,12 +3168,11 @@ if("serviceWorker" in navigator && navigator.serviceWorker && typeof navigator.s
 <script type="module">
 // ---- 1. KONFIGURASI (ISI DARI FIREBASE CONSOLE) ----
 const firebaseConfig = {
-  apiKey: "AIzaSyBfG6McmQVPfMZoQ9WRg7HDaNOfOcC1WT0",
-  authDomain: "guitarpath-cd4e5.firebaseapp.com",
-  projectId: "guitarpath-cd4e5",
-  storageBucket: "guitarpath-cd4e5.firebasestorage.app",
-  messagingSenderId: "476629095319",
-  appId: "1:476629095319:web:6991212787b31d9a3f2ad2"
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  appId: ""
+  // (storageBucket / messagingSenderId opsional, boleh ditempel juga)
 };
 
 // Kalau belum dikonfigurasi, jangan aktifkan sync sama sekali.
@@ -3149,7 +3180,7 @@ const SYNC_ENABLED = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
 
 const CloudSync = {
   ready:false, user:null, db:null, auth:null,
-  unsub:null, stateUnsub:null, applyingRemote:false, fb:null,
+  unsub:null, stateUnsub:null, tombUnsub:null, applyingRemote:false, fb:null,
   pendingConflicts:[],
 
   async init(){
@@ -3175,8 +3206,12 @@ const CloudSync = {
       authMod.onAuthStateChanged(this.auth, async (u)=>{
         this.user = u;
         this._renderBar();
-        if(u){ await this._startListening(); await this._startStateListening(); }
-        else { if(this.unsub){ this.unsub(); this.unsub=null; } if(this.stateUnsub){ this.stateUnsub(); this.stateUnsub=null; } }
+        if(u){ await this._startTombListening(); await this._startListening(); await this._startStateListening(); }
+        else {
+          if(this.unsub){ this.unsub(); this.unsub=null; }
+          if(this.stateUnsub){ this.stateUnsub(); this.stateUnsub=null; }
+          if(this.tombUnsub){ this.tombUnsub(); this.tombUnsub=null; }
+        }
       });
     }catch(e){
       console.error("CloudSync init gagal:", e);
@@ -3242,7 +3277,13 @@ const CloudSync = {
     // Remote → lokal
     for(const r of remote){
       const l = localById.get(r.id);
-      if(!l){ SongLib.songs.push(r); changed=true; continue; }
+      if(!l){
+        // Lagu remote tak ada di lokal: cek tombstone dulu
+        const decision = SongLib.tombDecision ? SongLib.tombDecision(r.id, r.updatedAt||0) : "add";
+        if(decision==="delete"){ if(this.remove) this.remove(r.id); continue; }      // terhapus → propagasi, jangan bangkitkan
+        if(decision==="resurrect" && SongLib.tomb){ delete SongLib.tomb[r.id]; if(SongLib.saveTomb) SongLib.saveTomb(); }
+        SongLib.songs.push(r); changed=true; continue;
+      }
       const lu = l.updatedAt||0, ru = r.updatedAt||0;
       if(ru===lu) continue;                 // identik
       if(this._sameContent(l,r)){           // beda timestamp tapi isi sama → samakan diam-diam
@@ -3348,6 +3389,42 @@ const CloudSync = {
     const { setDoc }=this.fb;
     try{ setDoc(this._stateDoc(), { progress:State.data.progress, quiz:State.data.quiz, bpm:State.data.bpm, updatedAt:State.data.updatedAt||Date.now() }); }
     catch(e){ console.error("syncState:", e); }
+  },
+
+  // ---- SYNC TOMBSTONE (penanda hapus) — cegah lagu terhapus muncul lagi ----
+  _tombDoc(){ const { doc }=this.fb; return doc(this.db,"users",this.user.uid,"meta","deleted"); },
+  async _startTombListening(){
+    if(this.tombUnsub) this.tombUnsub();
+    const { onSnapshot, getDoc, setDoc } = this.fb;
+    try{
+      const snap=await getDoc(this._tombDoc());
+      this._mergeTomb(snap.exists()? snap.data() : {});
+      await setDoc(this._tombDoc(), SongLib.tomb||{});   // dorong union tombstone
+    }catch(e){ console.error("tomb first-sync:", e); }
+    this.tombUnsub = onSnapshot(this._tombDoc(), (snap)=>{
+      if(snap.exists()) this._mergeTomb(snap.data());
+    }, (err)=> console.error("tomb snapshot:", err));
+  },
+  // Gabung tombstone remote → lokal (ts terbaru menang), lalu hapus lagu lokal yang kena tombstone
+  _mergeTomb(remoteTomb){
+    let changed=false;
+    for(const id in (remoteTomb||{})){
+      const ts=remoteTomb[id], cur=SongLib.tomb[id]||0;
+      if(ts>cur){ SongLib.tomb[id]=ts; changed=true; }
+    }
+    if(changed && SongLib.saveTomb) SongLib.saveTomb();
+    // hapus lagu lokal yang dihapus di device lain (tomb ≥ updatedAt)
+    const before=SongLib.songs.length;
+    SongLib.songs=SongLib.songs.filter(s=>{ const ts=SongLib.tomb[s.id]; return !(ts && ts>=(s.updatedAt||0)); });
+    if(SongLib.songs.length!==before){
+      this.applyingRemote=true; SongLib.save(); this.applyingRemote=false;
+      if(SongLib.refreshIfVisible) SongLib.refreshIfVisible();
+    }
+  },
+  syncTomb(){
+    if(!this.ready || !this.user) return;
+    const { setDoc }=this.fb;
+    try{ setDoc(this._tombDoc(), SongLib.tomb||{}); }catch(e){ console.error("syncTomb:", e); }
   },
 
   // Dipanggil SongLib tiap kali songs berubah secara lokal (bukan dari remote)
