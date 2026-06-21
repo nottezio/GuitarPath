@@ -440,6 +440,18 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
 /* ===== Mode Panggung (stage) ===== */
 body.stage-open{overflow:hidden}
 .stage{position:fixed;inset:0;z-index:4000;background:var(--bg);display:flex;flex-direction:column;--stg:1.7}
+/* mini-player youtube (pengiring) — melayang, di atas stage agar bisa play-along */
+.yt-mini{position:fixed;left:12px;bottom:12px;z-index:4500;width:248px;background:var(--surface);border:1px solid var(--accent);border-radius:12px;overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.5)}
+.yt-mini.big{width:min(420px,86vw)}
+.yt-mini-bar{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--surface-2)}
+.yt-mini-title{font-size:12px;font-weight:600;color:var(--accent)}
+.yt-mini-ctrl{display:flex;gap:4px}
+.yt-mini-btn{width:26px;height:26px;border:0;border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;font-size:12px}
+.yt-mini-btn:hover{background:var(--bg)}
+.yt-mini-frame{position:relative;width:100%;aspect-ratio:16/9;background:#000}
+.yt-mini-frame iframe{position:absolute;inset:0;width:100%;height:100%}
+.se-yt-row{align-items:center}
+.se-yt-row .search{flex:1;min-width:160px}
 .stage-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap}
 .stage-title{font-family:var(--font-display);font-weight:600;font-size:15px;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stage-ctrl{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -1053,7 +1065,7 @@ function go(id){
   if(id!=="tuner") Tuner.stop();
   if(id!=="iringan") Iringan.stop();
   if(id!=="strum" && typeof Strum!=="undefined") Strum.stop();
-  if(id!=="lagu" && typeof SongLib!=="undefined" && SongLib.stopScroll){ SongLib.stopScroll(); SongLib.stopBacking(); if(SongLib.closeStage) SongLib.closeStage(); }
+  if(id!=="lagu" && typeof SongLib!=="undefined" && SongLib.stopScroll){ SongLib.stopScroll(); SongLib.stopBacking(); if(SongLib.closeStage) SongLib.closeStage(); if(SongLib.closeYtPlayer) SongLib.closeYtPlayer(); }
   window.scrollTo(0,0);
 }
 
@@ -2283,6 +2295,10 @@ const SongLib={
             <input id="seCapo" type="number" min="0" max="11" value="${s.capo||0}">
           </label>
         </div>
+        <div class="se-row se-yt-row">
+          <input id="seYt" class="search" placeholder="Link YouTube untuk pengiring (opsional)" value="${this.esc(s.ytId?('https://youtu.be/'+s.ytId):'')}">
+          <button class="btn" id="seYtSearch" type="button">🔎 Cari di YouTube</button>
+        </div>
         <div class="se-mode">
           <button class="chip ${this.editInput==='chordpro'?'on':''}" data-em="chordpro">Format ChordPro</button>
           <button class="chip ${this.editInput==='paste'?'on':''}" data-em="paste">Tempel dari Sumber Lain</button>
@@ -2329,22 +2345,42 @@ const SongLib={
           artist:document.getElementById("seArtist").value,
           key:document.getElementById("seKey").value,
           capo:parseInt(document.getElementById("seCapo").value)||0,
+          ytId:this.parseYtId(document.getElementById("seYt").value),
           body:document.getElementById("seBody").value
         };
       }
       this.editInput=b.dataset.em; this.renderEdit();
     });
+    document.getElementById("seYtSearch").onclick=()=>{
+      const t=(document.getElementById("seTitle").value||"").trim();
+      const a=(document.getElementById("seArtist").value||"").trim();
+      const q=encodeURIComponent((t+" "+a).trim()+" official");
+      window.open("https://www.youtube.com/results?search_query="+q,"_blank","noopener,noreferrer");
+    };
     document.getElementById("seCancel").onclick=()=>{ this.pendingNew=null; this.mode = this.activeId?"view":"list"; this.routeBody(); };
     document.getElementById("seSave").onclick=()=>{
       const title=document.getElementById("seTitle").value.trim()||"Tanpa Judul";
       const artist=document.getElementById("seArtist").value.trim();
       const key=document.getElementById("seKey").value.trim();
       const capo=Math.max(0,Math.min(11,parseInt(document.getElementById("seCapo").value)||0));
+      const ytId=this.parseYtId(document.getElementById("seYt").value);
       const body=document.getElementById("seBody").value;
-      if(this.activeId){ const s=this.songs.find(x=>x.id===this.activeId); s.title=title; s.artist=artist; s.key=key; s.capo=capo; s.body=body; s.updatedAt=Date.now(); }
-      else { const id=this.uid(); this.songs.unshift({id,title,artist,key,capo,body,created:Date.now(),updatedAt:Date.now()}); this.activeId=id; this.pendingNew=null; }
+      if(this.activeId){ const s=this.songs.find(x=>x.id===this.activeId); s.title=title; s.artist=artist; s.key=key; s.capo=capo; s.ytId=ytId; s.body=body; s.updatedAt=Date.now(); }
+      else { const id=this.uid(); this.songs.unshift({id,title,artist,key,capo,ytId,body,created:Date.now(),updatedAt:Date.now()}); this.activeId=id; this.pendingNew=null; }
       this.save(); this.mode="view"; this.routeBody();
     };
+  },
+  // Ekstrak ID video dari berbagai bentuk URL YouTube (atau ID mentah)
+  parseYtId(input){
+    const v=(input||"").trim();
+    if(!v) return "";
+    if(/^[A-Za-z0-9_-]{11}$/.test(v)) return v;                 // ID mentah
+    let m=v.match(/[?&]v=([A-Za-z0-9_-]{11})/);                  // watch?v=
+    if(m) return m[1];
+    m=v.match(/(?:youtu\.be\/|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{11})/); // youtu.be / embed / shorts / live
+    if(m) return m[1];
+    m=v.match(/([A-Za-z0-9_-]{11})/);                            // fallback: 11 char pertama yang valid
+    return m?m[1]:"";
   },
   renderView(){
     const host=document.getElementById("laguBody");
@@ -2369,6 +2405,7 @@ const SongLib={
         </div>
         <button class="btn" id="svEdit">✎ Edit</button>
         <button class="btn" id="svStage">🎤 Panggung</button>
+        ${s.ytId?`<button class="btn" id="svVideo">🎬 Pengiring Video</button>`:""}
       </div>
       ${meta.length||capo>0?`<div class="sv-meta">
         ${meta.join("")}
@@ -2405,9 +2442,10 @@ const SongLib={
         <button class="sv-fab-speed" id="svFaster" aria-label="Lebih cepat">+</button>
         <span class="sv-fab-spd" id="svSpd">${this.scrollSpeed}</span>
       </div>`;
-    document.getElementById("svBack").onclick=()=>{ this.stopScroll(); this.stopBacking(); this.mode="list"; this.routeBody(); };
-    document.getElementById("svEdit").onclick=()=>{ this.stopScroll(); this.stopBacking(); this.mode="edit"; this.routeBody(); };
+    document.getElementById("svBack").onclick=()=>{ this.stopScroll(); this.stopBacking(); this.closeYtPlayer(); this.mode="list"; this.routeBody(); };
+    document.getElementById("svEdit").onclick=()=>{ this.stopScroll(); this.stopBacking(); this.closeYtPlayer(); this.mode="edit"; this.routeBody(); };
     document.getElementById("svStage").onclick=()=>this.openStage();
+    { const vb=document.getElementById("svVideo"); if(vb) vb.onclick=()=>this.toggleYtPlayer(s.ytId); }
     document.getElementById("svUp").onclick=()=>{ this.transpose=Math.min(11,this.transpose+1); this.routeBody(); };
     document.getElementById("svDown").onclick=()=>{ this.transpose=Math.max(-11,this.transpose-1); this.routeBody(); };
     const ct=document.getElementById("svCapoToggle");
@@ -2537,6 +2575,39 @@ const SongLib={
     try{ if("wakeLock" in navigator && navigator.wakeLock){ this.stageWake=await navigator.wakeLock.request("screen"); } }catch(e){ /* butuh HTTPS+gesture; abaikan bila gagal */ }
   },
   _releaseWake(){ try{ if(this.stageWake){ this.stageWake.release(); this.stageWake=null; } }catch(e){} },
+
+  // ============ MINI-PLAYER YOUTUBE (pengiring) ============
+  ytExpanded:false,
+  toggleYtPlayer(id){
+    const ex=document.getElementById("ytMini");
+    if(ex && ex.dataset.id===id){ this.closeYtPlayer(); return; }   // tombol sama → tutup
+    this.openYtPlayer(id);
+  },
+  openYtPlayer(id){
+    if(!id) return;
+    this.closeYtPlayer();
+    const w=document.createElement("div");
+    w.id="ytMini"; w.dataset.id=id; w.className="yt-mini"+(this.ytExpanded?" big":"");
+    // youtube-nocookie utk privasi; rel=0 batasi rekomendasi
+    const src=`https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&playsinline=1`;
+    w.innerHTML=`
+      <div class="yt-mini-bar">
+        <span class="yt-mini-title">🎬 Pengiring</span>
+        <div class="yt-mini-ctrl">
+          <button class="yt-mini-btn" id="ytSize" title="Perbesar/perkecil">${this.ytExpanded?"⊟":"⊞"}</button>
+          <button class="yt-mini-btn" id="ytClose" title="Tutup">✕</button>
+        </div>
+      </div>
+      <div class="yt-mini-frame">
+        <iframe src="${src}" title="Pengiring video" frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      </div>`;
+    document.body.appendChild(w);
+    document.getElementById("ytClose").onclick=()=>this.closeYtPlayer();
+    document.getElementById("ytSize").onclick=()=>{ this.ytExpanded=!this.ytExpanded; w.classList.toggle("big",this.ytExpanded); document.getElementById("ytSize").textContent=this.ytExpanded?"⊟":"⊞"; };
+  },
+  closeYtPlayer(){ const w=document.getElementById("ytMini"); if(w) w.remove(); },
   // ---- Backing track (click or drum groove) for playing along ----
   toggleBacking(){ this.backingPlaying ? this.stopBacking() : this.startBacking(); },
   startBacking(){
@@ -3312,6 +3383,7 @@ const CloudSync = {
   _sameContent(a,b){
     return (a.title||"")===(b.title||"") && (a.artist||"")===(b.artist||"")
         && (a.key||"")===(b.key||"") && (a.capo||0)===(b.capo||0)
+        && (a.ytId||"")===(b.ytId||"")
         && (a.body||"")===(b.body||"");
   },
 
@@ -3321,7 +3393,7 @@ const CloudSync = {
     const { doc, setDoc } = this.fb;
     const clean = {
       id:song.id, title:song.title||"", artist:song.artist||"",
-      key:song.key||"", capo:song.capo||0, body:song.body||"",
+      key:song.key||"", capo:song.capo||0, ytId:song.ytId||"", body:song.body||"",
       created:song.created||Date.now(),
       updatedAt:song.updatedAt||Date.now()
     };
