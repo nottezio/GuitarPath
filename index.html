@@ -380,6 +380,8 @@ html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none}
 .finder-site{padding:6px 12px;font-size:13px}
 .finder-import{width:100%}
 .sync-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 16px;padding:8px 12px;background:#1A1408;border:1px solid #221A0C;border-radius:10px;min-height:38px}
+.dup-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:rgba(217,96,106,.10);border:1px solid var(--bad);border-radius:10px;font-size:14px}
+.dup-banner b{color:var(--bad)}
 .lagu-filter{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
 .lagu-filter .search{flex:1;min-width:160px}
 .lagu-filter select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px;color:var(--text)}
@@ -2121,6 +2123,27 @@ const SongLib={
     if((remoteUpdatedAt||0) > ts) return "resurrect";  // diedit setelah dihapus → bangkitkan
     return "delete";                                    // tombstone menang
   },
+  // Deteksi duplikat berdasarkan isi (judul+artis+body). Pertahankan id terkecil (deterministik
+  // antar-device agar tak saling menghapus), kembalikan id salinan berlebih untuk dihapus.
+  _dedupKey(s){ return (s.title||"").trim()+"\u0000"+(s.artist||"").trim()+"\u0000"+(s.body||"").trim(); },
+  findDuplicateIds(){
+    const groups={};
+    for(const s of this.songs){ const k=this._dedupKey(s); (groups[k]=groups[k]||[]).push(s); }
+    const remove=[];
+    for(const k in groups){
+      const g=groups[k]; if(g.length<2) continue;
+      g.sort((a,b)=> a.id<b.id?-1:a.id>b.id?1:0);   // simpan id terkecil
+      for(let i=1;i<g.length;i++) remove.push(g[i].id);
+    }
+    return remove;
+  },
+  cleanDuplicates(){
+    const ids=this.findDuplicateIds();
+    if(!ids.length){ alert("Tidak ada duplikat."); return; }
+    if(!confirm(ids.length+" lagu duplikat (isi sama persis) akan dihapus dan disinkron ke perangkat lain. Lanjutkan?")) return;
+    ids.forEach(id=>this.deleteSong(id));
+    this.routeBody();
+  },
   save(){ try{ localStorage.setItem("guitarpath.songs",JSON.stringify(this.songs)); }catch(e){}
     if(window.CloudSync && CloudSync.syncLocalChange) CloudSync.syncLocalChange();
   },
@@ -2215,6 +2238,10 @@ const SongLib={
         <button class="btn" id="songImport">⬆ Impor</button>
         <input type="file" id="songFile" accept="application/json" style="display:none">
       </div>
+      ${this.findDuplicateIds().length?`<div class="dup-banner">
+        <span>⚠ Ditemukan <b>${this.findDuplicateIds().length}</b> lagu duplikat (isi sama persis).</span>
+        <button class="btn" id="dupClean">Bersihkan duplikat</button>
+      </div>`:""}
       ${this.songs.length?`<div class="lagu-filter">
         <input id="songSearch" class="search" type="search" placeholder="Cari judul atau artis…" value="${this.esc(this.searchQuery||"")}">
         <select id="songSort">
@@ -2228,6 +2255,7 @@ const SongLib={
     document.getElementById("songExport").onclick=()=>this.exportBackup();
     document.getElementById("songImport").onclick=()=>document.getElementById("songFile").click();
     document.getElementById("songFile").onchange=e=>this.importBackup(e);
+    { const dc=document.getElementById("dupClean"); if(dc) dc.onclick=()=>this.cleanDuplicates(); }
     // --- Cari Chord Online ---
     host.querySelectorAll(".finder-site").forEach(b=>b.onclick=()=>{
       const t=(document.getElementById("fndTitle").value||"").trim();
@@ -2778,16 +2806,25 @@ const SongLib={
         const parsed=JSON.parse(reader.result);
         const incoming=Array.isArray(parsed)?parsed:parsed.songs;
         if(!Array.isArray(incoming)) throw new Error("format");
-        // merge by id; new ids if collision
-        let added=0;
+        let added=0, updated=0, skipped=0;
         incoming.forEach(s=>{
           if(!s.title) return;
-          const id=s.id&&!this.songs.some(x=>x.id===s.id)?s.id:this.uid();
-          this.songs.push({id,title:s.title,artist:s.artist||"",key:s.key||"",capo:s.capo||0,body:s.body||"",created:s.created||Date.now()});
+          const clean={ title:s.title, artist:s.artist||"", key:s.key||"", capo:s.capo||0,
+                        ytId:s.ytId||"", body:s.body||"", created:s.created||Date.now(), updatedAt:s.updatedAt||Date.now() };
+          const byId = s.id ? this.songs.find(x=>x.id===s.id) : null;
+          if(byId){
+            // id sama → perbarui (yang terbaru menang), JANGAN buat duplikat
+            if((clean.updatedAt||0) >= (byId.updatedAt||0)){ Object.assign(byId, clean); updated++; } else { skipped++; }
+            return;
+          }
+          // id beda tapi isi identik (judul+artis+body) → lewati, hindari duplikat versi
+          const dup = this.songs.find(x=>(x.title||"")===clean.title && (x.artist||"")===clean.artist && (x.body||"")===clean.body);
+          if(dup){ skipped++; return; }
+          this.songs.unshift({ id:(s.id && !this.songs.some(x=>x.id===s.id))?s.id:this.uid(), ...clean });
           added++;
         });
         this.save(); this.mode="list"; this.routeBody();
-        alert(added+" lagu berhasil diimpor.");
+        alert(`Impor selesai — ${added} baru, ${updated} diperbarui, ${skipped} dilewati (duplikat).`);
       }catch(err){ alert("File tidak valid. Pastikan ini file backup GuitarPath (.json)."); }
     };
     reader.readAsText(file);
@@ -2838,19 +2875,26 @@ const SongLib={
   pairToChordPro(chordLine, lyricLine){
     const placements=[]; const re=/\S+/g; let m;
     while((m=re.exec(chordLine))!==null) placements.push({col:m.index, chord:m[0]});
-    const lyric=lyricLine; let out=""; let prev=0;
+    const lyric=lyricLine; let out=""; let prev=0; let placed=false;
     for(const p of placements){
       if(p.col>=lyric.length){
-        // chord sits past the end of the lyric (played without singing) -> keep it
-        // as a spaced trailing chord rather than mashing onto the last word
+        // chord melewati akhir lirik (dimainkan tanpa dinyanyikan) → beri jarak, jangan ditempel
         if(prev<lyric.length){ out+=lyric.slice(prev); prev=lyric.length; }
         out+="  ["+p.chord+"]";
-      } else {
-        let col=this.snapToWord(lyric, Math.min(p.col, lyric.length));
-        if(col<prev) col=prev;
-        out+=lyric.slice(prev,col)+"["+p.chord+"]";
-        prev=col;
+        placed=true; continue;
       }
+      const snapped=this.snapToWord(lyric, Math.min(p.col, lyric.length));
+      let col;
+      if(!placed || snapped>prev){
+        col=snapped;                                   // tak menabrak → snap ke awal kata (rapi)
+      } else {
+        // snap akan menabrak chord sebelumnya (2+ chord dalam 1 kata)
+        // → pakai kolom asli; chord boleh membelah kata (standar ChordPro)
+        col=Math.min(Math.max(p.col, prev), lyric.length);
+      }
+      if(col<prev) col=prev;
+      out+=lyric.slice(prev,col)+"["+p.chord+"]";
+      prev=col; placed=true;
     }
     if(prev<lyric.length) out+=lyric.slice(prev);
     return out;
@@ -3239,12 +3283,11 @@ if("serviceWorker" in navigator && navigator.serviceWorker && typeof navigator.s
 <script type="module">
 // ---- 1. KONFIGURASI (ISI DARI FIREBASE CONSOLE) ----
 const firebaseConfig = {
-  apiKey: "AIzaSyBfG6McmQVPfMZoQ9WRg7HDaNOfOcC1WT0",
-  authDomain: "guitarpath-cd4e5.firebaseapp.com",
-  projectId: "guitarpath-cd4e5",
-  storageBucket: "guitarpath-cd4e5.firebasestorage.app",
-  messagingSenderId: "476629095319",
-  appId: "1:476629095319:web:6991212787b31d9a3f2ad2"
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  appId: ""
+  // (storageBucket / messagingSenderId opsional, boleh ditempel juga)
 };
 
 // Kalau belum dikonfigurasi, jangan aktifkan sync sama sekali.
